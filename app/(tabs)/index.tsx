@@ -561,7 +561,7 @@ export default function JobsScreen() {
               ...job,
               note: jobNotes[jobId] || job.note || '',
             };
-            return (
+  return (
               <JobCard
                 key={jobId}
                 job={jobWithNote}
