@@ -336,19 +336,24 @@ export default function JobsScreen() {
             }));
           }
         } else {
-          // Refresh events in background to get updated status from server
-          // Don't await - let it happen in background while user sees updated UI
-          fetchDriverEvents(userData).catch(error => {
-            console.error('❌ Background refresh error:', error);
-            // If refresh fails, revert optimistic update
-            setJobs(prevJobs => prevJobs.map(j => {
-              const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
-              if (jobIdStr === jobId) {
-                return { ...j, status: originalJobStatus }; // Revert to original status
-              }
-              return j;
-            }));
-          });
+          // For NO SHOW, backend currently does not return these jobs in getdriverevents,
+          // but the reference app keeps showing them in JOBS COMPLETED.
+          // So we SKIP background refresh for NOSHOW to keep the card visible.
+          if (action !== 'NOSHOW') {
+            // Refresh events in background to get updated status from server
+            // Don't await - let it happen in background while user sees updated UI
+            fetchDriverEvents(userData).catch(error => {
+              console.error('❌ Background refresh error:', error);
+              // If refresh fails, revert optimistic update
+              setJobs(prevJobs => prevJobs.map(j => {
+                const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
+                if (jobIdStr === jobId) {
+                  return { ...j, status: originalJobStatus }; // Revert to original status
+                }
+                return j;
+              }));
+            });
+          }
         }
       } else {
         console.error('❌ Update failed:', result.message);
