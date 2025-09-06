@@ -8,7 +8,10 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-type TabType = 'open' | 'in-progress' | 'completed';
+// Tabs now follow client feedback:
+// - "TO DO" list: items not yet handled
+// - "DONE" list: picked up or cancelled (including no-show)
+type TabType = 'todo' | 'done';
 
 interface UserData {
   tennantId: number;
@@ -19,20 +22,27 @@ interface UserData {
 
 export default function JobsScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabType>('open');
+  const [activeTab, setActiveTab] = useState<TabType>('todo');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingJobId, setUpdatingJobId] = useState<string | null>(null); // Track which job is being updated
   const [userData, setUserData] = useState<UserData | null>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ name: string; status: string } | null>(null);
+  const [jobNotes, setJobNotes] = useState<Record<string, string>>({}); // Store notes per job ID
   const slideAnim = useRef(new Animated.Value(-200)).current; // Start above screen
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const loadingOpacityAnim = useRef(new Animated.Value(0)).current; // Loading overlay opacity only (no slide)
 
-  const openJobs = jobs.filter(job => job.status === 'open');
-  const inProgressJobs = jobs.filter(job => job.status === 'in-progress');
-  const completedJobs = jobs.filter(job => job.status === 'completed' || job.status === 'no-show');
+  // Logical grouping based on client description:
+  // - TO DO: not yet picked up / cancelled (READY / open)
+  // - DONE: picked up OR cancelled (includes no-show)
+  const todoJobs = jobs.filter(job => job.status === 'open');
+  const doneJobs = jobs.filter(job =>
+    job.status === 'in-progress' ||
+    job.status === 'completed' ||
+    job.status === 'no-show'
+  );
 
   // Animate status banner when statusMessage changes
   useEffect(() => {
@@ -84,30 +94,6 @@ export default function JobsScreen() {
       opacityAnim.setValue(0);
     }
   }, [statusMessage]);
-
-  // Clear status banner when switching tabs (to prevent banner from persisting)
-  useEffect(() => {
-    if (statusMessage) {
-      // Immediately hide the banner when tab changes
-      slideAnim.stopAnimation();
-      opacityAnim.stopAnimation();
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: -200,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setStatusMessage(null);
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
 
   // Show/hide loading overlay when updatingJobId changes (no animation, just fade)
   useEffect(() => {
@@ -273,13 +259,9 @@ export default function JobsScreen() {
           return j;
         }));
         
-        // Switch to appropriate tab IMMEDIATELY (before API call)
-        // This ensures the job appears in the correct tab right away
-        if (newStatus === 'in-progress') {
-          setActiveTab('in-progress');
-        } else if (newStatus === 'completed' || newStatus === 'no-show') {
-          setActiveTab('completed');
-        }
+        // Switch to DONE list immediately for any handled job
+        // (picked up, completed, or no-show)
+        setActiveTab('done');
       }
       
       let result: { success: boolean; message?: string };
@@ -319,11 +301,10 @@ export default function JobsScreen() {
         // Animation and auto-hide handled by useEffect
         
         if (action === 'CANCELALL') {
-          // For cancel, keep the user on the current page while the spinner runs,
-          // then reload data and return to the OPEN JOBS tab when finished.
+          // For cancel, reload data and keep user in DONE list.
           try {
             await fetchDriverEvents(userData);
-            setActiveTab('open');
+            setActiveTab('done');
           } catch (error) {
             console.error('❌ Refresh after cancel failed:', error);
             // If refresh fails, keep original status
@@ -365,9 +346,9 @@ export default function JobsScreen() {
           }
           return j;
         }));
-        // Revert tab if needed
-        if (newStatus === 'in-progress' && originalJobStatus !== 'in-progress') {
-          setActiveTab('open');
+        // Revert tab if needed (go back to TO DO if we moved it)
+        if (newStatus !== originalJobStatus) {
+          setActiveTab(originalJobStatus === 'open' ? 'todo' : 'done');
         }
         // Show user-friendly error message
         const userMessage = result.message?.includes('timeout') 
@@ -386,8 +367,8 @@ export default function JobsScreen() {
         return j;
       }));
       // Revert tab if needed
-      if (newStatus === 'in-progress' && originalJobStatus !== 'in-progress') {
-        setActiveTab('open');
+      if (newStatus !== originalJobStatus) {
+        setActiveTab(originalJobStatus === 'open' ? 'todo' : 'done');
       }
       let errorMessage = 'Failed to update job';
       if (error instanceof Error) {
@@ -408,21 +389,131 @@ export default function JobsScreen() {
   };
 
   const handleStart = (jobId: string) => {
-    handleJobUpdate(jobId, 'CHECKEDIN', 'in-progress');
+    // Client: main action is marking as picked up.
+    // We treat CHECKEDIN as "done" (moves to DONE list).
+    handleJobUpdate(jobId, 'CHECKEDIN', 'completed');
   };
 
   const handleNoShow = (jobId: string) => {
+    // No show / cancel also goes to DONE list.
     handleJobUpdate(jobId, 'NOSHOW', 'no-show');
   };
 
+  // STOP / CANCELALL flows are still available internally if needed,
+  // but primary UI now focuses on Pick Up and No Show.
   const handleStop = (jobId: string) => {
     handleJobUpdate(jobId, 'CHECKEDOUT', 'completed');
   };
 
   const handleCancel = (jobId: string) => {
-    // For cancel, keep status as in-progress during the API call so the
-    // card stays on the in-progress page while the spinner shows.
-    handleJobUpdate(jobId, 'CANCELALL', 'in-progress');
+    handleJobUpdate(jobId, 'CANCELALL', 'completed');
+  };
+
+  // Reopen: Move a job from DONE back to TO DO
+  // Client feedback: "if they change one on done list it moves them back to not done yet"
+  const handleReopen = async (jobId: string) => {
+    if (!userData) {
+      Alert.alert('Error', 'Please log in first');
+      return;
+    }
+
+    const job = jobs.find(j => (j.EventId?.toString() || j.requestId || j.webeventid?.toString()) === jobId);
+    if (!job) {
+      Alert.alert('Error', 'Job not found');
+      return;
+    }
+
+    const originalJobStatus = job.status;
+    setUpdatingJobId(jobId);
+
+    try {
+      // Optimistically update status to 'open' (TO DO)
+      setJobs(prevJobs => prevJobs.map(j => {
+        const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
+        if (jobIdStr === jobId) {
+          return { ...j, status: 'open' };
+        }
+        return j;
+      }));
+
+      // Switch to TO DO tab
+      setActiveTab('todo');
+
+      // Call backend to revert status (send CANCELALL or appropriate status to reset to READY)
+      // For now, we'll use CANCELALL which sets status back to 1 (READY/open)
+      const latitude = location?.latitude?.toString() || '0';
+      const longitude = location?.longitude?.toString() || '0';
+
+      const hasEventField = job.Event !== undefined && job.Event !== null;
+      const isAppointmentEvent = !hasEventField && (job.webeventid !== undefined && job.webeventid !== null);
+
+      let result: { success: boolean; message?: string };
+      
+      if (isAppointmentEvent) {
+        const updateRequest: UpdateAppointmentStatusRequest = {
+          WebEventId: job.webeventid!,
+          EventStatus: 'CANCELALL',
+          Latitude: latitude,
+          Longitude: longitude,
+          TenantId: userData.tennantId,
+          UserName: userData.userName,
+        };
+        result = await updateAppointmentStatus(updateRequest);
+      } else {
+        const updateRequest: UpdateDriverEventStatusRequest = {
+          EventId: job.EventId || parseInt(job.requestId || '0'),
+          EventStatus: 'CANCELALL',
+          Latitude: latitude,
+          Longitude: longitude,
+          TenantId: userData.tennantId,
+          UserName: userData.userName,
+        };
+        result = await updateDriverEventStatus(updateRequest);
+      }
+
+      if (result.success) {
+        const displayName = job.FullName || job.name;
+        setStatusMessage({ name: displayName, status: 'Reopened' });
+        
+        // Refresh data in background
+        fetchDriverEvents(userData).catch(error => {
+          console.error('❌ Background refresh error:', error);
+        });
+      } else {
+        // Revert on failure
+        setJobs(prevJobs => prevJobs.map(j => {
+          const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
+          if (jobIdStr === jobId) {
+            return { ...j, status: originalJobStatus };
+          }
+          return j;
+        }));
+        setActiveTab(originalJobStatus === 'open' ? 'todo' : 'done');
+        Alert.alert('Update Failed', result.message || 'Failed to reopen job');
+      }
+    } catch (error) {
+      console.error('❌ Reopen error:', error);
+      // Revert on error
+      setJobs(prevJobs => prevJobs.map(j => {
+        const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
+        if (jobIdStr === jobId) {
+          return { ...j, status: originalJobStatus };
+        }
+        return j;
+      }));
+      setActiveTab(originalJobStatus === 'open' ? 'todo' : 'done');
+      Alert.alert('Error', 'Failed to reopen job');
+    } finally {
+      setUpdatingJobId(null);
+    }
+  };
+
+  // Handle note changes - store in local state (in-memory for now)
+  const handleNoteChange = (jobId: string, note: string) => {
+    setJobNotes(prev => ({
+      ...prev,
+      [jobId]: note,
+    }));
   };
 
   const handleBack = () => {
@@ -434,17 +525,13 @@ export default function JobsScreen() {
     let emptyMessage = '';
 
     switch (activeTab) {
-      case 'open':
-        jobsToShow = openJobs;
-        emptyMessage = 'No Appointments at this moment';
+      case 'todo':
+        jobsToShow = todoJobs;
+        emptyMessage = 'No Appointments to do at this moment';
         break;
-      case 'in-progress':
-        jobsToShow = inProgressJobs;
-        emptyMessage = 'No Jobs In-Progress at this moment';
-        break;
-      case 'completed':
-        jobsToShow = completedJobs;
-        emptyMessage = 'No Appointments Completed at this moment';
+      case 'done':
+        jobsToShow = doneJobs;
+        emptyMessage = 'No Appointments done at this moment';
         break;
     }
 
@@ -469,14 +556,21 @@ export default function JobsScreen() {
         <ScrollView style={styles.jobsList}>
           {jobsToShow.map((job) => {
             const jobId = job.EventId?.toString() || job.webeventid?.toString() || job.requestId || '';
-  return (
+            // Merge note from state into job object
+            const jobWithNote = {
+              ...job,
+              note: jobNotes[jobId] || job.note || '',
+            };
+            return (
               <JobCard
                 key={jobId}
-                job={job}
+                job={jobWithNote}
                 onStart={() => handleStart(jobId)}
                 onNoShow={() => handleNoShow(jobId)}
                 onStop={() => handleStop(jobId)}
                 onCancel={() => handleCancel(jobId)}
+                onReopen={() => handleReopen(jobId)}
+                onNoteChange={(note) => handleNoteChange(jobId, note)}
               />
             );
           })}
@@ -514,33 +608,24 @@ export default function JobsScreen() {
         </View>
       </View>
 
-      {/* Tabs */}
+      {/* Tabs - TO DO / DONE as per client workflow */}
       <View style={styles.tabs}>
         <TouchableOpacity
-          style={[styles.tab, styles.tabWithBorder, activeTab === 'open' && styles.activeTab]}
-          onPress={() => setActiveTab('open')}
+          style={[styles.tab, styles.tabWithBorder, activeTab === 'todo' && styles.activeTab]}
+          onPress={() => setActiveTab('todo')}
           activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, activeTab === 'open' && styles.activeTabText]}>
-            OPEN JOBS
+          <Text style={[styles.tabText, activeTab === 'todo' && styles.activeTabText]}>
+            TO DO
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, styles.tabWithBorder, activeTab === 'in-progress' && styles.activeTab]}
-          onPress={() => setActiveTab('in-progress')}
+          style={[styles.tab, activeTab === 'done' && styles.activeTab]}
+          onPress={() => setActiveTab('done')}
           activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, activeTab === 'in-progress' && styles.activeTabText]}>
-            JOBS IN-PROGRESS
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'completed' && styles.activeTab]}
-          onPress={() => setActiveTab('completed')}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.tabText, activeTab === 'completed' && styles.activeTabText]}>
-            JOBS COMPLETED
+          <Text style={[styles.tabText, activeTab === 'done' && styles.activeTabText]}>
+            DONE
           </Text>
         </TouchableOpacity>
       </View>

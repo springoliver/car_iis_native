@@ -1,5 +1,5 @@
-import React from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Linking, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export interface Job {
   webeventid?: number; // Primary ID from database (used in stored procedure)
@@ -21,6 +21,7 @@ export interface Job {
   Route?: number; // Route number
   eventstatus?: number; // From database: 1, 14, 16, 19, 21, 30
   action?: string; // Current action from database
+  note?: string; // Optional note field (40 characters max)
 }
 
 interface JobCardProps {
@@ -29,15 +30,23 @@ interface JobCardProps {
   onNoShow?: () => void;
   onStop?: () => void;
   onCancel?: () => void;
+  onReopen?: () => void;
+  onNoteChange?: (note: string) => void;
   showActions?: boolean;
 }
 
-export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions = true }: JobCardProps) {
+export function JobCard({ job, onStart, onNoShow, onStop, onCancel, onReopen, onNoteChange, showActions = true }: JobCardProps) {
   const displayId = job.EventId || job.webeventid || job.requestId || 'N/A';
   const displayName = job.FullName || job.name;
   const displayLocation = job.CustomerAddress || job.location;
   const displayPhone = job.HomePhone || job.phone;
   const displayCity = job.City ? `, ${job.City}` : '';
+  const [note, setNote] = useState(job.note || '');
+
+  // Sync note state when job prop changes
+  useEffect(() => {
+    setNote(job.note || '');
+  }, [job.note]);
 
   // Get status display text for status row
   const getStatusText = (): string => {
@@ -78,8 +87,26 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
           <Text style={styles.labelText}>Location</Text>
           <Text style={styles.colon}> :</Text>
         </View>
-        <Text style={styles.value}>{displayLocation}{displayCity} {displayPhone}</Text>
+        <Text style={styles.value}>{displayLocation}{displayCity}</Text>
       </View>
+
+      {displayPhone && (
+        <View style={styles.details}>
+          <View style={styles.labelContainer}>
+            <Text style={styles.labelText}>Phone</Text>
+            <Text style={styles.colon}> :</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => {
+              if (displayPhone) {
+                Linking.openURL(`tel:${displayPhone}`).catch(() => {});
+              }
+            }}
+          >
+            <Text style={[styles.value, styles.phoneLink]}>{displayPhone}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.details}>
         <View style={styles.labelContainer}>
@@ -97,13 +124,7 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
         <Text style={styles.value}>{job.appointmentTime || ''}</Text>
       </View>
 
-      <View style={styles.details}>
-        <View style={styles.labelContainer}>
-          <Text style={styles.labelText}>Duration</Text>
-          <Text style={styles.colon}> :</Text>
-        </View>
-        <Text style={styles.value}>{job.duration || ''}</Text>
-      </View>
+      {/* Client feedback: visible duration field is not required */}
 
       {(job.status === 'in-progress' || job.status === 'completed' || job.status === 'no-show') && (
         <View style={styles.details}>
@@ -115,32 +136,52 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
         </View>
       )}
 
+      {/* Note field - 40 characters max */}
+      <View style={styles.details}>
+        <View style={styles.labelContainer}>
+          <Text style={styles.labelText}>Note</Text>
+          <Text style={styles.colon}> :</Text>
+        </View>
+        <TextInput
+          style={styles.noteInput}
+          value={note}
+          onChangeText={(text) => {
+            const trimmedText = text.substring(0, 40); // Max 40 characters
+            setNote(trimmedText);
+            if (onNoteChange) {
+              onNoteChange(trimmedText);
+            }
+          }}
+          placeholder="Add note (40 chars max)"
+          placeholderTextColor="#999"
+          maxLength={40}
+          multiline={false}
+        />
+      </View>
+
       {showActions && (
         <View style={styles.actions}>
+          {/* TO DO list: main actions are Pick Up and No Show (Cancel) */}
           {job.status === 'open' && (
             <>
               <TouchableOpacity style={[styles.button, styles.startButton]} onPress={onStart}>
-                <Text style={styles.buttonText}>START</Text>
+                <Text style={styles.buttonText}>PICK UP</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.button, styles.noShowButton]} onPress={onNoShow}>
                 <Text style={styles.buttonText}>NO SHOW</Text>
               </TouchableOpacity>
             </>
           )}
-          {job.status === 'in-progress' && (
+
+          {/* DONE list: REOPEN button to move back to TO DO */}
+          {job.status !== 'open' && (
             <>
-              <TouchableOpacity style={[styles.button, styles.stopButton]} onPress={onStop}>
-                <Text style={styles.buttonText}>STOP</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={onCancel}>
-                <Text style={styles.buttonText}>CANCEL</Text>
-              </TouchableOpacity>
+              {onReopen && (
+                <TouchableOpacity style={[styles.button, styles.reopenButton]} onPress={onReopen}>
+                  <Text style={styles.buttonText}>REOPEN</Text>
+                </TouchableOpacity>
+              )}
             </>
-          )}
-          {job.status === 'no-show' && (
-            <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={onCancel}>
-              <Text style={styles.buttonText}>CANCEL</Text>
-            </TouchableOpacity>
           )}
         </View>
       )}
@@ -227,6 +268,12 @@ const styles = StyleSheet.create({
   stopButton: {
     backgroundColor: '#20B2AA', // Green color matching screenshots
   },
+  callButton: {
+    backgroundColor: '#20B2AA',
+  },
+  reopenButton: {
+    backgroundColor: '#FF9800', // Orange color for reopen action
+  },
   cancelButton: {
     backgroundColor: '#F44336',
   },
@@ -234,5 +281,20 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  phoneLink: {
+    color: '#2196F3',
+    textDecorationLine: 'underline',
+  },
+  noteInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#FFF',
   },
 });
