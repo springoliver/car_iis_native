@@ -1128,6 +1128,14 @@ export function driverEventToJob(event: DriverEvent): Job {
   const normalizedDriverStatusKey = (event.EventStatus || '').replace(/\s+/g, '').toUpperCase();
   const mappedDriverStatus = driverStatusMap[normalizedDriverStatusKey] || 'open';
 
+  // Debug log to verify backend status → UI status mapping
+  console.log('🟡 driverEventToJob status mapping', {
+    EventId: event.EventId,
+    rawEventStatus: event.EventStatus,
+    normalizedStatusKey: normalizedDriverStatusKey,
+    mappedStatus: mappedDriverStatus,
+  });
+
   return {
     EventId: event.EventId,
     webeventid: event.EventId, // For compatibility
