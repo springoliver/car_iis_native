@@ -1055,14 +1055,19 @@ export function appointmentEventToJob(event: AppointmentEvent): Job {
   // Map EventStatus to job status
   // Note: Appointment events use "STARTED", "COMPLETED" (from updateAppointmentStatus)
   // while driver events use "CHECKEDIN", "CHECKEDOUT"
+  // Backend may also return values like "No show" with spaces/casing differences,
+  // so normalize before mapping.
   const statusMap: Record<string, 'open' | 'in-progress' | 'completed' | 'no-show'> = {
-    'READY': 'open',
-    'CHECKEDIN': 'in-progress', // For driver events
-    'STARTED': 'in-progress', // For appointment events (from updateAppointmentStatus)
-    'CHECKEDOUT': 'completed', // For driver events
-    'COMPLETED': 'completed', // For appointment events (from updateAppointmentStatus)
-    'NOSHOW': 'no-show',
+    READY: 'open',
+    CHECKEDIN: 'in-progress',   // For driver events
+    STARTED: 'in-progress',     // For appointment events (from updateAppointmentStatus)
+    CHECKEDOUT: 'completed',    // For driver events
+    COMPLETED: 'completed',     // For appointment events (from updateAppointmentStatus)
+    NOSHOW: 'no-show',
   };
+
+  const normalizedStatusKey = (event.EventStatus || '').replace(/\s+/g, '').toUpperCase();
+  const mappedStatus = statusMap[normalizedStatusKey] || 'open';
   
   return {
     webeventid: event.WebEventId,
@@ -1075,7 +1080,7 @@ export function appointmentEventToJob(event: AppointmentEvent): Job {
     date: dateStr,
     appointmentTime: appointmentTime,
     duration: duration,
-    status: statusMap[event.EventStatus] || 'open',
+    status: mappedStatus,
     phone: event.HomePhone,
     HomePhone: event.HomePhone,
     EventStatus: event.EventStatus,
@@ -1109,6 +1114,20 @@ export function driverEventToJob(event: DriverEvent): Job {
     }
   }
   
+  // Map EventStatus to job status
+  // Normalize to handle values like "No show", "no show", etc.
+  const driverStatusMap: Record<string, 'open' | 'in-progress' | 'completed' | 'no-show'> = {
+    READY: 'open',
+    CHECKEDIN: 'in-progress',
+    STARTED: 'in-progress',
+    CHECKEDOUT: 'completed',
+    COMPLETED: 'completed',
+    NOSHOW: 'no-show',
+  };
+
+  const normalizedDriverStatusKey = (event.EventStatus || '').replace(/\s+/g, '').toUpperCase();
+  const mappedDriverStatus = driverStatusMap[normalizedDriverStatusKey] || 'open';
+
   return {
     EventId: event.EventId,
     webeventid: event.EventId, // For compatibility
@@ -1121,10 +1140,7 @@ export function driverEventToJob(event: DriverEvent): Job {
     date: dateStr,
     appointmentTime: appointmentTime,
     duration: duration,
-    status: event.EventStatus === 'READY' ? 'open' :
-            event.EventStatus === 'CHECKEDIN' ? 'in-progress' :
-            event.EventStatus === 'CHECKEDOUT' ? 'completed' :
-            event.EventStatus === 'NOSHOW' ? 'no-show' : 'open',
+    status: mappedDriverStatus,
     phone: event.HomePhone,
     HomePhone: event.HomePhone,
     EventStatus: event.EventStatus,
