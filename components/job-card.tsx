@@ -39,14 +39,21 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
   const displayPhone = job.HomePhone || job.phone;
   const displayCity = job.City ? `, ${job.City}` : '';
 
-  // Get status display text for in-progress jobs
+  // Get status display text for status row
   const getStatusText = (): string => {
     if (job.status === 'in-progress') {
-      // Map EventStatus to display text
-      if (job.EventStatus === 'CHECKEDIN' || job.EventStatus === 'STARTED') {
-        return 'Service Started';
-      }
-      return 'Service Started'; // Default for in-progress
+      // In-progress: service started
+      return 'Service Started';
+    }
+
+    if (job.status === 'completed') {
+      // Completed: service completed
+      return 'Service Completed';
+    }
+
+    if (job.status === 'no-show') {
+      // No-show: text exactly as in reference
+      return 'No show';
     }
     return '';
   };
@@ -98,7 +105,7 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
         <Text style={styles.value}>{job.duration || ''}</Text>
       </View>
 
-      {job.status === 'in-progress' && (
+      {(job.status === 'in-progress' || job.status === 'completed' || job.status === 'no-show') && (
         <View style={styles.details}>
           <View style={styles.labelContainer}>
             <Text style={styles.labelText}>Status</Text>
@@ -129,11 +136,6 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
                 <Text style={styles.buttonText}>CANCEL</Text>
               </TouchableOpacity>
             </>
-          )}
-          {job.status === 'completed' && (
-            <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={onCancel}>
-              <Text style={styles.buttonText}>CANCEL</Text>
-            </TouchableOpacity>
           )}
           {job.status === 'no-show' && (
             <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={onCancel}>
