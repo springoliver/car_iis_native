@@ -259,22 +259,27 @@ export default function JobsScreen() {
         EventStatus: job.EventStatus,
       });
       
-      // Optimistically update the job status locally FIRST for immediate UI update
-      // This makes the UI respond instantly before the API call completes
-      setJobs(prevJobs => prevJobs.map(j => {
-        const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
-        if (jobIdStr === jobId) {
-          return { ...j, status: newStatus };
+      // For CANCELALL, keep the job on the current page while the spinner shows.
+      // The reference app shows the cancel spinner on the in-progress page,
+      // then returns to the OPEN JOBS list after the cancel completes.
+      if (action !== 'CANCELALL') {
+        // Optimistically update the job status locally FIRST for immediate UI update
+        // This makes the UI respond instantly before the API call completes
+        setJobs(prevJobs => prevJobs.map(j => {
+          const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
+          if (jobIdStr === jobId) {
+            return { ...j, status: newStatus };
+          }
+          return j;
+        }));
+        
+        // Switch to appropriate tab IMMEDIATELY (before API call)
+        // This ensures the job appears in the correct tab right away
+        if (newStatus === 'in-progress') {
+          setActiveTab('in-progress');
+        } else if (newStatus === 'completed' || newStatus === 'no-show') {
+          setActiveTab('completed');
         }
-        return j;
-      }));
-      
-      // Switch to appropriate tab IMMEDIATELY (before API call)
-      // This ensures the job appears in the correct tab right away
-      if (newStatus === 'in-progress') {
-        setActiveTab('in-progress');
-      } else if (newStatus === 'completed' || newStatus === 'no-show') {
-        setActiveTab('completed');
       }
       
       let result: { success: boolean; message?: string };
@@ -313,19 +318,38 @@ export default function JobsScreen() {
         setStatusMessage({ name: displayName, status: statusText });
         // Animation and auto-hide handled by useEffect
         
-        // Refresh events in background to get updated status from server
-        // Don't await - let it happen in background while user sees updated UI
-        fetchDriverEvents(userData).catch(error => {
-          console.error('❌ Background refresh error:', error);
-          // If refresh fails, revert optimistic update
-          setJobs(prevJobs => prevJobs.map(j => {
-            const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
-            if (jobIdStr === jobId) {
-              return { ...j, status: originalJobStatus }; // Revert to original status
-            }
-            return j;
-          }));
-        });
+        if (action === 'CANCELALL') {
+          // For cancel, keep the user on the current page while the spinner runs,
+          // then reload data and return to the OPEN JOBS tab when finished.
+          try {
+            await fetchDriverEvents(userData);
+            setActiveTab('open');
+          } catch (error) {
+            console.error('❌ Refresh after cancel failed:', error);
+            // If refresh fails, keep original status
+            setJobs(prevJobs => prevJobs.map(j => {
+              const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
+              if (jobIdStr === jobId) {
+                return { ...j, status: originalJobStatus };
+              }
+              return j;
+            }));
+          }
+        } else {
+          // Refresh events in background to get updated status from server
+          // Don't await - let it happen in background while user sees updated UI
+          fetchDriverEvents(userData).catch(error => {
+            console.error('❌ Background refresh error:', error);
+            // If refresh fails, revert optimistic update
+            setJobs(prevJobs => prevJobs.map(j => {
+              const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
+              if (jobIdStr === jobId) {
+                return { ...j, status: originalJobStatus }; // Revert to original status
+              }
+              return j;
+            }));
+          });
+        }
       } else {
         console.error('❌ Update failed:', result.message);
         // Revert optimistic update on failure
@@ -391,7 +415,9 @@ export default function JobsScreen() {
   };
 
   const handleCancel = (jobId: string) => {
-    handleJobUpdate(jobId, 'CANCELALL', 'no-show');
+    // For cancel, keep status as in-progress during the API call so the
+    // card stays on the in-progress page while the spinner shows.
+    handleJobUpdate(jobId, 'CANCELALL', 'in-progress');
   };
 
   const handleBack = () => {
