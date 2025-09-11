@@ -39,6 +39,18 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
   const displayPhone = job.HomePhone || job.phone;
   const displayCity = job.City ? `, ${job.City}` : '';
 
+  // Get status display text for in-progress jobs
+  const getStatusText = (): string => {
+    if (job.status === 'in-progress') {
+      // Map EventStatus to display text
+      if (job.EventStatus === 'CHECKEDIN' || job.EventStatus === 'STARTED') {
+        return 'Service Started';
+      }
+      return 'Service Started'; // Default for in-progress
+    }
+    return '';
+  };
+
   return (
     <View style={styles.card}>
       {/* Request ID - Top Right */}
@@ -85,6 +97,16 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
         </View>
         <Text style={styles.value}>{job.duration || ''}</Text>
       </View>
+
+      {job.status === 'in-progress' && (
+        <View style={styles.details}>
+          <View style={styles.labelContainer}>
+            <Text style={styles.labelText}>Status</Text>
+            <Text style={styles.colon}> :</Text>
+          </View>
+          <Text style={styles.value}>{getStatusText()}</Text>
+        </View>
+      )}
 
       {showActions && (
         <View style={styles.actions}>
