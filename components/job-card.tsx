@@ -47,27 +47,42 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
       </View>
       
       <View style={styles.details}>
-        <Text style={styles.label}>Name :</Text>
+        <View style={styles.labelContainer}>
+          <Text style={styles.labelText}>Name</Text>
+          <Text style={styles.colon}> :</Text>
+        </View>
         <Text style={styles.value}>{displayName}</Text>
       </View>
 
       <View style={styles.details}>
-        <Text style={styles.label}>Location :</Text>
+        <View style={styles.labelContainer}>
+          <Text style={styles.labelText}>Location</Text>
+          <Text style={styles.colon}> :</Text>
+        </View>
         <Text style={styles.value}>{displayLocation}{displayCity} {displayPhone}</Text>
       </View>
 
       <View style={styles.details}>
-        <Text style={styles.label}>Date :</Text>
+        <View style={styles.labelContainer}>
+          <Text style={styles.labelText}>Date</Text>
+          <Text style={styles.colon}> :</Text>
+        </View>
         <Text style={styles.value}>{job.date}</Text>
       </View>
 
       <View style={styles.details}>
-        <Text style={styles.label}>Appointment Time :</Text>
+        <View style={styles.labelContainer}>
+          <Text style={styles.labelText}>Appointment Time</Text>
+          <Text style={styles.colon}> :</Text>
+        </View>
         <Text style={styles.value}>{job.appointmentTime || ''}</Text>
       </View>
 
       <View style={styles.details}>
-        <Text style={styles.label}>Duration :</Text>
+        <View style={styles.labelContainer}>
+          <Text style={styles.labelText}>Duration</Text>
+          <Text style={styles.colon}> :</Text>
+        </View>
         <Text style={styles.value}>{job.duration || ''}</Text>
       </View>
 
@@ -138,13 +153,29 @@ const styles = StyleSheet.create({
   details: {
     flexDirection: 'row',
     marginBottom: 8,
+    alignItems: 'center',
   },
-  label: {
+  labelContainer: {
+    flexDirection: 'row',
+    width: 160,
+    position: 'relative',
+    alignItems: 'center',
+    paddingRight: 8, // Space for colon
+  },
+  labelText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    width: 160,
-    textAlign: 'right', // Align colons vertically
+    textAlign: 'left',
+    flex: 1,
+  },
+  colon: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    position: 'absolute',
+    right: 0,
+    paddingRight: 8,
   },
   value: {
     fontSize: 16,
