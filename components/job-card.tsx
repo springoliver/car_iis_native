@@ -33,32 +33,6 @@ interface JobCardProps {
 }
 
 export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions = true }: JobCardProps) {
-  const getStatusColor = () => {
-    switch (job.status) {
-      case 'completed':
-        return '#4CAF50';
-      case 'no-show':
-        return '#F44336';
-      case 'in-progress':
-        return '#2196F3';
-      default:
-        return '#666';
-    }
-  };
-
-  const getStatusText = () => {
-    switch (job.status) {
-      case 'completed':
-        return 'Service Completed';
-      case 'no-show':
-        return 'No show';
-      case 'in-progress':
-        return 'Service Started';
-      default:
-        return '';
-    }
-  };
-
   const displayId = job.EventId || job.webeventid || job.requestId || 'N/A';
   const displayName = job.FullName || job.name;
   const displayLocation = job.CustomerAddress || job.location;
@@ -170,15 +144,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     width: 160,
+    textAlign: 'right', // Align colons vertically
   },
   value: {
     fontSize: 16,
     color: '#333',
     flex: 1,
-  },
-  status: {
-    fontSize: 16,
-    fontWeight: '600',
   },
   actions: {
     flexDirection: 'row',
