@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export interface Job {
   webeventid?: number; // Primary ID from database (used in stored procedure)
@@ -25,7 +25,6 @@ export interface Job {
 
 interface JobCardProps {
   job: Job;
-  isLoading?: boolean; // Show loading indicator on this card
   onStart?: () => void;
   onNoShow?: () => void;
   onStop?: () => void;
@@ -33,7 +32,7 @@ interface JobCardProps {
   showActions?: boolean;
 }
 
-export function JobCard({ job, isLoading = false, onStart, onNoShow, onStop, onCancel, showActions = true }: JobCardProps) {
+export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions = true }: JobCardProps) {
   const getStatusColor = () => {
     switch (job.status) {
       case 'completed':
@@ -95,14 +94,7 @@ export function JobCard({ job, isLoading = false, onStart, onNoShow, onStop, onC
 
       <View style={styles.details}>
         <Text style={styles.label}>Duration :</Text>
-        <View style={styles.valueContainer}>
-          <Text style={styles.value}>{job.duration || ''}</Text>
-          {isLoading && (
-            <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="small" color="#2196F3" />
-            </View>
-          )}
-        </View>
+        <Text style={styles.value}>{job.duration || ''}</Text>
       </View>
 
       {showActions && (
@@ -179,33 +171,10 @@ const styles = StyleSheet.create({
     color: '#333',
     width: 160,
   },
-  valueContainer: {
-    flex: 1,
-    position: 'relative',
-  },
   value: {
     fontSize: 16,
     color: '#333',
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: -4,
-    left: 0,
-    right: 0,
-    bottom: -4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 8,
-    ...(Platform.OS === 'web' ? {
-      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-    } : {
-      elevation: 3,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.3,
-      shadowRadius: 2,
-    }),
+    flex: 1,
   },
   status: {
     fontSize: 16,

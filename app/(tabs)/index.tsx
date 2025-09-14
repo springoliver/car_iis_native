@@ -28,6 +28,7 @@ export default function JobsScreen() {
   const [statusMessage, setStatusMessage] = useState<{ name: string; status: string } | null>(null);
   const slideAnim = useRef(new Animated.Value(-200)).current; // Start above screen
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  const loadingOpacityAnim = useRef(new Animated.Value(0)).current; // Loading overlay opacity only (no slide)
 
   const openJobs = jobs.filter(job => job.status === 'open');
   const inProgressJobs = jobs.filter(job => job.status === 'in-progress');
@@ -107,6 +108,17 @@ export default function JobsScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  // Show/hide loading overlay when updatingJobId changes (no animation, just fade)
+  useEffect(() => {
+    if (updatingJobId) {
+      // Fade in
+      loadingOpacityAnim.setValue(1);
+    } else {
+      // Fade out
+      loadingOpacityAnim.setValue(0);
+    }
+  }, [updatingJobId]);
 
   // Load user data and fetch driver events
   useEffect(() => {
@@ -430,7 +442,6 @@ export default function JobsScreen() {
               <JobCard
                 key={jobId}
                 job={job}
-                isLoading={updatingJobId === jobId}
                 onStart={() => handleStart(jobId)}
                 onNoShow={() => handleNoShow(jobId)}
                 onStop={() => handleStop(jobId)}
@@ -439,24 +450,6 @@ export default function JobsScreen() {
             );
           })}
         </ScrollView>
-        {statusMessage && (
-          <View style={styles.statusBannerOverlay} pointerEvents="none">
-            <Animated.View
-              style={[
-                styles.statusBanner,
-                {
-                  transform: [{ translateY: slideAnim }],
-                  opacity: opacityAnim,
-                },
-              ]}
-            >
-              <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-              <Text style={styles.statusBannerText}>
-                {statusMessage.name} - {statusMessage.status}
-              </Text>
-            </Animated.View>
-          </View>
-        )}
       </View>
     );
   };
@@ -525,6 +518,42 @@ export default function JobsScreen() {
       <View style={styles.content}>
         {renderJobs()}
       </View>
+
+      {/* Loading Overlay - Centered spinner without background */}
+      {updatingJobId && (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <Animated.View
+            style={[
+              styles.loadingSpinner,
+              {
+                opacity: loadingOpacityAnim,
+              },
+            ]}
+          >
+            <ActivityIndicator size="large" color="#2196F3" />
+          </Animated.View>
+        </View>
+      )}
+
+      {/* Status Banner */}
+      {statusMessage && (
+        <View style={styles.statusBannerOverlay} pointerEvents="none">
+          <Animated.View
+            style={[
+              styles.statusBanner,
+              {
+                transform: [{ translateY: slideAnim }],
+                opacity: opacityAnim,
+              },
+            ]}
+          >
+            <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+            <Text style={styles.statusBannerText}>
+              {statusMessage.name} - {statusMessage.status}
+            </Text>
+          </Animated.View>
+        </View>
+      )}
     </View>
   );
 }
@@ -654,6 +683,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
     textAlign: 'center',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    pointerEvents: 'box-none', // Allows touches to pass through
+    zIndex: 999,
+  },
+  loadingSpinner: {
+    // No background, just the spinner
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusBannerOverlay: {
     position: 'absolute',
