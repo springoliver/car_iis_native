@@ -22,6 +22,7 @@ export default function JobsScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('open');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingJobId, setUpdatingJobId] = useState<string | null>(null); // Track which job is being updated
   const [userData, setUserData] = useState<UserData | null>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ name: string; status: string } | null>(null);
@@ -218,7 +219,8 @@ export default function JobsScreen() {
     }
 
     const displayName = job.FullName || job.name;
-    setLoading(true);
+    const originalJobStatus = job.status; // Store original status for rollback
+    setUpdatingJobId(jobId); // Track which job is being updated
 
     try {
       // Get GPS coordinates
@@ -244,6 +246,24 @@ export default function JobsScreen() {
         action,
         EventStatus: job.EventStatus,
       });
+      
+      // Optimistically update the job status locally FIRST for immediate UI update
+      // This makes the UI respond instantly before the API call completes
+      setJobs(prevJobs => prevJobs.map(j => {
+        const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
+        if (jobIdStr === jobId) {
+          return { ...j, status: newStatus };
+        }
+        return j;
+      }));
+      
+      // Switch to appropriate tab IMMEDIATELY (before API call)
+      // This ensures the job appears in the correct tab right away
+      if (newStatus === 'in-progress') {
+        setActiveTab('in-progress');
+      } else if (newStatus === 'completed' || newStatus === 'no-show') {
+        setActiveTab('completed');
+      }
       
       let result: { success: boolean; message?: string };
       
@@ -274,34 +294,75 @@ export default function JobsScreen() {
       }
 
       if (result.success) {
-        // Show status banner
+        // Show status banner AFTER tab switch and optimistic update
         const statusText = action === 'CHECKEDIN' ? 'Service Started' : 
                           action === 'CHECKEDOUT' ? 'Service Stopped' :
                           action === 'NOSHOW' ? 'No Show' : 'Cancelled';
         setStatusMessage({ name: displayName, status: statusText });
         // Animation and auto-hide handled by useEffect
         
-        // Switch to appropriate tab FIRST (before refresh)
-        // This ensures the tab is ready when the updated jobs arrive
-        if (newStatus === 'in-progress') {
-          setActiveTab('in-progress');
-        } else if (newStatus === 'completed' || newStatus === 'no-show') {
-          setActiveTab('completed');
-        }
-        
-        // Refresh events to get updated status
-        // This will update the jobs list with the new status
-        await fetchDriverEvents(userData);
+        // Refresh events in background to get updated status from server
+        // Don't await - let it happen in background while user sees updated UI
+        fetchDriverEvents(userData).catch(error => {
+          console.error('❌ Background refresh error:', error);
+          // If refresh fails, revert optimistic update
+          setJobs(prevJobs => prevJobs.map(j => {
+            const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
+            if (jobIdStr === jobId) {
+              return { ...j, status: originalJobStatus }; // Revert to original status
+            }
+            return j;
+          }));
+        });
       } else {
         console.error('❌ Update failed:', result.message);
-        Alert.alert('Update Failed', result.message || 'Failed to update job status');
+        // Revert optimistic update on failure
+        setJobs(prevJobs => prevJobs.map(j => {
+          const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
+          if (jobIdStr === jobId) {
+            return { ...j, status: originalJobStatus }; // Revert to original status
+          }
+          return j;
+        }));
+        // Revert tab if needed
+        if (newStatus === 'in-progress' && originalJobStatus !== 'in-progress') {
+          setActiveTab('open');
+        }
+        // Show user-friendly error message
+        const userMessage = result.message?.includes('timeout') 
+          ? 'Server timeout: The operation took too long. Please try again.'
+          : (result.message || 'Failed to update job status');
+        Alert.alert('Update Failed', userMessage);
       }
     } catch (error) {
       console.error('❌ Update error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update job';
+      // Revert optimistic update on error
+      setJobs(prevJobs => prevJobs.map(j => {
+        const jobIdStr = j.EventId?.toString() || j.webeventid?.toString() || j.requestId || '';
+        if (jobIdStr === jobId) {
+          return { ...j, status: originalJobStatus }; // Revert to original status
+        }
+        return j;
+      }));
+      // Revert tab if needed
+      if (newStatus === 'in-progress' && originalJobStatus !== 'in-progress') {
+        setActiveTab('open');
+      }
+      let errorMessage = 'Failed to update job';
+      if (error instanceof Error) {
+        // Extract user-friendly message from error
+        if (error.message.includes('timeout') || error.message.includes('Timeout')) {
+          errorMessage = 'Server timeout: The operation took too long. Please try again or contact support if the problem persists.';
+        } else if (error.message.length > 200) {
+          // Truncate very long error messages
+          errorMessage = error.message.substring(0, 200) + '...';
+        } else {
+          errorMessage = error.message;
+        }
+      }
       Alert.alert('Error', errorMessage);
     } finally {
-      setLoading(false);
+      setUpdatingJobId(null); // Clear updating state
     }
   };
 
@@ -365,10 +426,11 @@ export default function JobsScreen() {
         <ScrollView style={styles.jobsList}>
           {jobsToShow.map((job) => {
             const jobId = job.EventId?.toString() || job.webeventid?.toString() || job.requestId || '';
-            return (
+  return (
               <JobCard
                 key={jobId}
                 job={job}
+                isLoading={updatingJobId === jobId}
                 onStart={() => handleStart(jobId)}
                 onNoShow={() => handleNoShow(jobId)}
                 onStop={() => handleStop(jobId)}

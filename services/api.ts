@@ -521,7 +521,27 @@ export async function updateAppointmentStatus(
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Update appointment status error:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      
+      // Try to parse error message from JSON response
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.ExceptionMessage) {
+          // Extract user-friendly error message
+          if (errorJson.ExceptionMessage.includes('Execution Timeout') || errorJson.ExceptionMessage.includes('timeout')) {
+            errorMessage = 'Server timeout: The operation took too long. Please try again or contact support if the problem persists.';
+          } else {
+            errorMessage = errorJson.ExceptionMessage;
+          }
+        } else if (errorJson.Message) {
+          errorMessage = errorJson.Message;
+        }
+      } catch (e) {
+        // If not JSON, use the text as-is
+        errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
+      }
+      
+      throw new Error(errorMessage);
     }
 
     const data: UpdateStatusResponse = await response.json();
@@ -700,7 +720,27 @@ export async function updateDriverEventStatus(
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Update driver event status error:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      
+      // Try to parse error message from JSON response
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.ExceptionMessage) {
+          // Extract user-friendly error message
+          if (errorJson.ExceptionMessage.includes('Execution Timeout') || errorJson.ExceptionMessage.includes('timeout')) {
+            errorMessage = 'Server timeout: The operation took too long. Please try again or contact support if the problem persists.';
+          } else {
+            errorMessage = errorJson.ExceptionMessage;
+          }
+        } else if (errorJson.Message) {
+          errorMessage = errorJson.Message;
+        }
+      } catch (e) {
+        // If not JSON, use the text as-is
+        errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
+      }
+      
+      throw new Error(errorMessage);
     }
 
     const data: UpdateStatusResponse = await response.json();
