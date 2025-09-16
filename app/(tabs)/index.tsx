@@ -35,19 +35,26 @@ export default function JobsScreen() {
   // Animate status banner when statusMessage changes
   useEffect(() => {
     if (statusMessage) {
-      // Slide down and fade in
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0, // Center position
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      // Reset to initial position first (above screen, invisible)
+      slideAnim.setValue(-200);
+      opacityAnim.setValue(0);
+      
+      // Use requestAnimationFrame to ensure the reset is applied before animation starts
+      requestAnimationFrame(() => {
+        // Slide down and fade in
+        Animated.parallel([
+          Animated.timing(slideAnim, {
+            toValue: 0, // Center position
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacityAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      });
 
       // After 3 seconds, slide up and fade out
       const timer = setTimeout(() => {
