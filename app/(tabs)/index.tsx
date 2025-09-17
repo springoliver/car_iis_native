@@ -5,8 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Animated, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type TabType = 'open' | 'in-progress' | 'completed';
 
@@ -25,10 +25,56 @@ export default function JobsScreen() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ name: string; status: string } | null>(null);
+  const slideAnim = useRef(new Animated.Value(-200)).current; // Start above screen
+  const opacityAnim = useRef(new Animated.Value(0)).current;
 
   const openJobs = jobs.filter(job => job.status === 'open');
   const inProgressJobs = jobs.filter(job => job.status === 'in-progress');
   const completedJobs = jobs.filter(job => job.status === 'completed' || job.status === 'no-show');
+
+  // Animate status banner when statusMessage changes
+  useEffect(() => {
+    if (statusMessage) {
+      // Slide down and fade in
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0, // Center position
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // After 3 seconds, slide up and fade out
+      const timer = setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(slideAnim, {
+            toValue: -200, // Slide up above screen
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacityAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          // Clear status message after animation completes
+          setStatusMessage(null);
+        });
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    } else {
+      // Reset animation values when statusMessage is cleared
+      slideAnim.setValue(-200);
+      opacityAnim.setValue(0);
+    }
+  }, [statusMessage]);
 
   // Load user data and fetch driver events
   useEffect(() => {
@@ -185,9 +231,7 @@ export default function JobsScreen() {
                           action === 'CHECKEDOUT' ? 'Service Stopped' :
                           action === 'NOSHOW' ? 'No Show' : 'Cancelled';
         setStatusMessage({ name: displayName, status: statusText });
-        
-        // Hide banner after 3 seconds
-        setTimeout(() => setStatusMessage(null), 3000);
+        // Animation and auto-hide handled by useEffect
         
         // Refresh events to get updated status
         await fetchDriverEvents(userData);
@@ -282,13 +326,21 @@ export default function JobsScreen() {
           })}
         </ScrollView>
         {statusMessage && (
-          <View style={styles.statusBannerOverlay}>
-            <View style={styles.statusBanner}>
+          <View style={styles.statusBannerOverlay} pointerEvents="none">
+            <Animated.View
+              style={[
+                styles.statusBanner,
+                {
+                  transform: [{ translateY: slideAnim }],
+                  opacity: opacityAnim,
+                },
+              ]}
+            >
               <Ionicons name="checkmark-circle" size={20} color="#FFF" />
               <Text style={styles.statusBannerText}>
                 {statusMessage.name} - {statusMessage.status}
               </Text>
-            </View>
+            </Animated.View>
           </View>
         )}
       </View>
