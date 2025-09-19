@@ -265,29 +265,33 @@ export default function JobsScreen() {
     }
 
     return (
-      <ScrollView style={styles.jobsList}>
+      <View style={styles.jobsContainer}>
+        <ScrollView style={styles.jobsList}>
+          {jobsToShow.map((job) => {
+            const jobId = job.EventId?.toString() || job.webeventid?.toString() || job.requestId || '';
+            return (
+              <JobCard
+                key={jobId}
+                job={job}
+                onStart={() => handleStart(jobId)}
+                onNoShow={() => handleNoShow(jobId)}
+                onStop={() => handleStop(jobId)}
+                onCancel={() => handleCancel(jobId)}
+              />
+            );
+          })}
+        </ScrollView>
         {statusMessage && (
-          <View style={styles.statusBanner}>
-            <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-            <Text style={styles.statusBannerText}>
-              {statusMessage.name} - {statusMessage.status}
-            </Text>
+          <View style={styles.statusBannerOverlay}>
+            <View style={styles.statusBanner}>
+              <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+              <Text style={styles.statusBannerText}>
+                {statusMessage.name} - {statusMessage.status}
+              </Text>
+            </View>
           </View>
         )}
-        {jobsToShow.map((job) => {
-          const jobId = job.EventId?.toString() || job.webeventid?.toString() || job.requestId || '';
-          return (
-            <JobCard
-              key={jobId}
-              job={job}
-              onStart={() => handleStart(jobId)}
-              onNoShow={() => handleNoShow(jobId)}
-              onStop={() => handleStop(jobId)}
-              onCancel={() => handleCancel(jobId)}
-            />
-          );
-        })}
-      </ScrollView>
+      </View>
     );
   };
 
@@ -461,6 +465,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
+  jobsContainer: {
+    flex: 1,
+    position: 'relative',
+  },
   jobsList: {
     flex: 1,
     paddingTop: 16,
@@ -481,16 +489,35 @@ const styles = StyleSheet.create({
     color: '#999',
     textAlign: 'center',
   },
+  statusBannerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    pointerEvents: 'box-none', // Allow touches to pass through to content below
+    zIndex: 1000,
+  },
   statusBanner: {
     backgroundColor: '#4CAF50',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     marginHorizontal: 16,
-    marginBottom: 16,
     borderRadius: 8,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+    } : {
+      elevation: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+    }),
   },
   statusBannerText: {
     color: '#FFF',
