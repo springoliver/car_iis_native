@@ -83,6 +83,30 @@ export default function JobsScreen() {
     }
   }, [statusMessage]);
 
+  // Clear status banner when switching tabs (to prevent banner from persisting)
+  useEffect(() => {
+    if (statusMessage) {
+      // Immediately hide the banner when tab changes
+      slideAnim.stopAnimation();
+      opacityAnim.stopAnimation();
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: -200,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setStatusMessage(null);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
   // Load user data and fetch driver events
   useEffect(() => {
     (async () => {
@@ -202,13 +226,29 @@ export default function JobsScreen() {
       const longitude = location?.longitude?.toString() || '0';
 
       // Determine which API to use based on job type
-      // If job has webeventid (from appointment events), use updateAppointmentStatus
-      // Otherwise, use updateDriverEventStatus (for driver events)
-      const isAppointmentEvent = job.webeventid !== undefined && job.webeventid !== null;
+      // Driver events have 'Event' field (pickup/drop off), appointment events don't
+      // Appointment events come from getApplicationEvents, driver events from getDriverEvents
+      // If job has 'Event' field, it's a driver event, otherwise check if it's an appointment event
+      // Appointment events: no Event field, have webeventid from WebEventId
+      // Driver events: have Event field (pickup/drop off), EventId from driver events
+      const hasEventField = job.Event !== undefined && job.Event !== null;
+      const isAppointmentEvent = !hasEventField && (job.webeventid !== undefined && job.webeventid !== null);
+      
+      console.log('🔵 Job update detection:', {
+        jobId,
+        hasEventField,
+        Event: job.Event,
+        webeventid: job.webeventid,
+        EventId: job.EventId,
+        isAppointmentEvent,
+        action,
+        EventStatus: job.EventStatus,
+      });
       
       let result: { success: boolean; message?: string };
       
       if (isAppointmentEvent) {
+        console.log('🔵 Using updateAppointmentStatus API');
         // Use appointment status update API (uses WebEventId)
         const updateRequest: UpdateAppointmentStatusRequest = {
           WebEventId: job.webeventid!,
@@ -220,6 +260,7 @@ export default function JobsScreen() {
         };
         result = await updateAppointmentStatus(updateRequest);
       } else {
+        console.log('🔵 Using updateDriverEventStatus API');
         // Use driver event status update API (uses EventId)
         const updateRequest: UpdateDriverEventStatusRequest = {
           EventId: job.EventId || parseInt(job.requestId || '0'),
@@ -240,21 +281,25 @@ export default function JobsScreen() {
         setStatusMessage({ name: displayName, status: statusText });
         // Animation and auto-hide handled by useEffect
         
-        // Refresh events to get updated status
-        await fetchDriverEvents(userData);
-        
-        // Switch to appropriate tab
+        // Switch to appropriate tab FIRST (before refresh)
+        // This ensures the tab is ready when the updated jobs arrive
         if (newStatus === 'in-progress') {
           setActiveTab('in-progress');
         } else if (newStatus === 'completed' || newStatus === 'no-show') {
           setActiveTab('completed');
         }
+        
+        // Refresh events to get updated status
+        // This will update the jobs list with the new status
+        await fetchDriverEvents(userData);
       } else {
+        console.error('❌ Update failed:', result.message);
         Alert.alert('Update Failed', result.message || 'Failed to update job status');
       }
     } catch (error) {
-      console.error('Update error:', error);
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update job');
+      console.error('❌ Update error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update job';
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }

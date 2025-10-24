@@ -1013,10 +1013,14 @@ export function appointmentEventToJob(event: AppointmentEvent): Job {
   }
   
   // Map EventStatus to job status
+  // Note: Appointment events use "STARTED", "COMPLETED" (from updateAppointmentStatus)
+  // while driver events use "CHECKEDIN", "CHECKEDOUT"
   const statusMap: Record<string, 'open' | 'in-progress' | 'completed' | 'no-show'> = {
     'READY': 'open',
-    'CHECKEDIN': 'in-progress',
-    'CHECKEDOUT': 'completed',
+    'CHECKEDIN': 'in-progress', // For driver events
+    'STARTED': 'in-progress', // For appointment events (from updateAppointmentStatus)
+    'CHECKEDOUT': 'completed', // For driver events
+    'COMPLETED': 'completed', // For appointment events (from updateAppointmentStatus)
     'NOSHOW': 'no-show',
   };
   
