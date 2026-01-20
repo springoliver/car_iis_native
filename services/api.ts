@@ -127,6 +127,13 @@ export interface UpdateDriverCallRequest {
   UserName: string;
 }
 
+export interface UpdateUserCallRequest {
+  WebEventId: number;
+  IsCall: boolean;
+  TennantId: number; // Note: API uses "TennantId" (with double 'n')
+  UserName: string;
+}
+
 export interface StartTripRequest {
   TenantId: number;
   LogDate: string; // ISO datetime string (e.g., "2026-03-16T02:50:32.1543017-05:00")
@@ -591,6 +598,65 @@ export async function updateDriverCallStatus(
     }
   } catch (error) {
     console.error('❌ Update driver call status error:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update call status',
+    };
+  }
+}
+
+/**
+ * Update user call status
+ * Endpoint: POST /business/updateusercallstatus
+ * Updates adv_events table setting IsCall=1
+ * 
+ * @param request - Update request with WebEventId, IsCall flag, TenantId, and UserName
+ */
+export async function updateUserCallStatus(
+  request: UpdateUserCallRequest
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    console.log('🔵 Update user call status:', { 
+      WebEventId: request.WebEventId, 
+      IsCall: request.IsCall,
+      TennantId: request.TennantId,
+      UserName: request.UserName,
+    });
+    
+    const response = await fetch(`${API_BASE_URL}/business/updateusercallstatus`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        WebEventId: request.WebEventId,
+        IsCall: request.IsCall,
+        TennantId: request.TennantId, // Note: API uses "TennantId" (double 'n')
+        UserName: request.UserName,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Update user call status error:', response.status, errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+
+    const data: UpdateStatusResponse = await response.json();
+    console.log('✅ Update user call status response:', data);
+    
+    if (data.OperationStatus === 'SUCCESS') {
+      return {
+        success: true,
+      };
+    } else {
+      return {
+        success: false,
+        message: 'Update failed',
+      };
+    }
+  } catch (error) {
+    console.error('❌ Update user call status error:', error);
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Failed to update call status',
