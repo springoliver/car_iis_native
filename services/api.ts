@@ -136,6 +136,16 @@ export interface StartTripRequest {
   RouteNo: string;
 }
 
+export interface EndTripRequest {
+  TenantId: number;
+  LogDate: string; // ISO datetime string (e.g., "2026-03-16T02:54:47.910521-05:00")
+  Longitude: string;
+  Latitude: string;
+  UserName: string;
+  EventIds: string; // Comma-separated string of event IDs (e.g., "1,2,3")
+  RouteNo: string;
+}
+
 export interface UpdateStatusResponse {
   OperationStatus: string; // "SUCCESS" or "FAILURE"
 }
@@ -707,6 +717,71 @@ export async function startTrip(
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Failed to start trip',
+    };
+  }
+}
+
+/**
+ * End trip
+ * Endpoint: POST /business/endtrip
+ * Logs trip end coordinates with action "TRIPENDED_" + RouteNo
+ * Also updates all events in EventIds (comma-separated) from CHECKEDIN (status 19) to CHECKEDOUT (status 30)
+ * 
+ * @param request - End trip request with TenantId, RouteNo, EventIds (comma-separated), GPS coordinates, etc.
+ */
+export async function endTrip(
+  request: EndTripRequest
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    console.log('🔵 End trip:', { 
+      TenantId: request.TenantId,
+      RouteNo: request.RouteNo,
+      EventIds: request.EventIds,
+      Latitude: request.Latitude,
+      Longitude: request.Longitude,
+      UserName: request.UserName,
+    });
+    
+    const response = await fetch(`${API_BASE_URL}/business/endtrip`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        TenantId: request.TenantId,
+        LogDate: request.LogDate || new Date().toISOString(), // Use provided date or current date
+        Longitude: request.Longitude,
+        Latitude: request.Latitude,
+        UserName: request.UserName,
+        EventIds: request.EventIds, // Comma-separated string of event IDs
+        RouteNo: request.RouteNo,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ End trip error:', response.status, errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+
+    const data: UpdateStatusResponse = await response.json();
+    console.log('✅ End trip response:', data);
+    
+    if (data.OperationStatus === 'SUCCESS') {
+      return {
+        success: true,
+      };
+    } else {
+      return {
+        success: false,
+        message: 'End trip failed',
+      };
+    }
+  } catch (error) {
+    console.error('❌ End trip error:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to end trip',
     };
   }
 }
