@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { JobCard, Job } from '@/components/job-card';
 import { mockJobs } from '@/data/mock-jobs';
+import { updateJobStatus, getTodayJobs, type JobUpdateRequest } from '@/services/api';
+import { parseUserLogon } from '@/utils/auth';
 
 type TabType = 'open' | 'in-progress' | 'completed';
 
@@ -10,47 +12,117 @@ export default function JobsScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('open');
   const [jobs, setJobs] = useState<Job[]>(mockJobs);
   const [loading, setLoading] = useState(false);
+  const [authToken, setAuthToken] = useState<string>(''); // TODO: Get from secure storage
+  const [userLogon, setUserLogon] = useState<string>(''); // TODO: Get from login
+  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   const openJobs = jobs.filter(job => job.status === 'open');
   const inProgressJobs = jobs.filter(job => job.status === 'in-progress');
   const completedJobs = jobs.filter(job => job.status === 'completed' || job.status === 'no-show');
 
-  const handleStart = (jobId: string) => {
+  // Get current GPS location
+  useEffect(() => {
+    (async () => {
+      try {
+        // TODO: Install expo-location: npx expo install expo-location
+        // For now, using mock location
+        // const { status } = await Location.requestForegroundPermissionsAsync();
+        // if (status === 'granted') {
+        //   const locationData = await Location.getCurrentPositionAsync({});
+        //   setLocation({
+        //     latitude: locationData.coords.latitude,
+        //     longitude: locationData.coords.longitude,
+        //   });
+        // }
+        // Mock location for testing
+        setLocation({ latitude: 40.7128, longitude: -74.0060 }); // NYC coordinates
+      } catch (error) {
+        console.error('Location error:', error);
+      }
+    })();
+  }, []);
+
+  const handleJobUpdate = async (
+    jobId: string,
+    action: 'Checkedin' | 'Checkedout' | 'NoShow' | 'CancelALL',
+    newStatus: 'in-progress' | 'completed' | 'no-show'
+  ) => {
+    if (!authToken || !userLogon) {
+      Alert.alert('Error', 'Please log in first');
+      return;
+    }
+
+    const job = jobs.find(j => (j.requestId || j.webeventid?.toString()) === jobId);
+    if (!job) {
+      Alert.alert('Error', 'Job not found');
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      setJobs(jobs.map(job => 
-        job.requestId === jobId ? { ...job, status: 'in-progress' as const } : job
-      ));
+
+    try {
+      // Parse user logon to get tenant ID
+      const userInfo = parseUserLogon(userLogon);
+      if (!userInfo) {
+        throw new Error('Invalid user logon format');
+      }
+
+      // Get GPS coordinates
+      const latitude = location?.latitude?.toString() || '0';
+      const longitude = location?.longitude?.toString() || '0';
+
+      // Build update request matching stored procedure parameters
+      const updateRequest: JobUpdateRequest = {
+        eventid: job.webeventid || parseInt(job.requestId || '0'),
+        action: action,
+        latitude: latitude,
+        longitude: longitude,
+        userLogon: userLogon,
+        tennantid: userInfo.tennantid,
+        role: 'Driver', // App is for drivers
+        authToken: authToken,
+      };
+
+      const result = await updateJobStatus(updateRequest);
+
+      if (result.success) {
+        // Update local state
+        setJobs(jobs.map(j => 
+          (j.requestId || j.webeventid?.toString()) === jobId 
+            ? { ...j, status: newStatus as any } 
+            : j
+        ));
+        
+        // Switch to appropriate tab
+        if (newStatus === 'in-progress') {
+          setActiveTab('in-progress');
+        } else if (newStatus === 'completed' || newStatus === 'no-show') {
+          setActiveTab('completed');
+        }
+      } else {
+        Alert.alert('Update Failed', result.message || 'Failed to update job status');
+      }
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update job');
+    } finally {
       setLoading(false);
-      setActiveTab('in-progress');
-    }, 500);
+    }
+  };
+
+  const handleStart = (jobId: string) => {
+    handleJobUpdate(jobId, 'Checkedin', 'in-progress');
   };
 
   const handleNoShow = (jobId: string) => {
-    setLoading(true);
-    setTimeout(() => {
-      setJobs(jobs.map(job => 
-        job.requestId === jobId ? { ...job, status: 'no-show' as const } : job
-      ));
-      setLoading(false);
-      setActiveTab('completed');
-    }, 500);
+    handleJobUpdate(jobId, 'NoShow', 'no-show');
   };
 
   const handleStop = (jobId: string) => {
-    setLoading(true);
-    setTimeout(() => {
-      setJobs(jobs.map(job => 
-        job.requestId === jobId ? { ...job, status: 'completed' as const } : job
-      ));
-      setLoading(false);
-      setActiveTab('completed');
-    }, 500);
+    handleJobUpdate(jobId, 'Checkedout', 'completed');
   };
 
   const handleCancel = (jobId: string) => {
-    // Cancel action - could remove from list or mark as cancelled
-    console.log('Cancel job:', jobId);
+    handleJobUpdate(jobId, 'CancelALL', 'no-show');
   };
 
   const renderJobs = () => {
@@ -90,16 +162,19 @@ export default function JobsScreen() {
 
     return (
       <ScrollView style={styles.jobsList}>
-        {jobsToShow.map((job) => (
-          <JobCard
-            key={job.requestId}
-            job={job}
-            onStart={() => handleStart(job.requestId)}
-            onNoShow={() => handleNoShow(job.requestId)}
-            onStop={() => handleStop(job.requestId)}
-            onCancel={() => handleCancel(job.requestId)}
-          />
-        ))}
+        {jobsToShow.map((job) => {
+          const jobId = job.webeventid?.toString() || job.requestId || '';
+          return (
+            <JobCard
+              key={jobId}
+              job={job}
+              onStart={() => handleStart(jobId)}
+              onNoShow={() => handleNoShow(jobId)}
+              onStop={() => handleStop(jobId)}
+              onCancel={() => handleCancel(jobId)}
+            />
+          );
+        })}
       </ScrollView>
     );
   };

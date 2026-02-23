@@ -15,19 +15,26 @@ export interface LoginResponse {
   authToken?: string;
   message?: string;
   driverData?: any;
+  tennantid?: number;
+  userLogon?: string; // Full DRITLC format
+  role?: 'Driver' | 'User';
 }
 
 export interface JobUpdateRequest {
-  requestId: string;
-  status: 'picked-up' | 'dropped-off' | 'no-show';
-  gpsLat?: number;
-  gpsLon?: number;
-  note?: string;
+  eventid: number; // webeventid from database
+  action: 'Checkedin' | 'Checkedout' | 'NoShow' | 'CancelALL' | 'CancelDropOff' | 'started' | 'completed';
+  latitude: string;
+  longitude: string;
+  userLogon: string; // Format: DRITLC (e.g., DR1TLC)
+  tennantid: number; // Extracted from userLogon (TLC part)
+  role: 'Driver' | 'User';
   authToken: string;
+  note?: string;
 }
 
 export interface Job {
-  requestId: string;
+  webeventid: number; // This is the eventid used in stored procedure
+  requestId?: string; // Legacy field, maps to webeventid
   name: string;
   location: string;
   date: string;
@@ -35,6 +42,8 @@ export interface Job {
   duration: string;
   status?: 'open' | 'in-progress' | 'completed' | 'no-show';
   phone?: string;
+  eventstatus?: number; // From database: 1, 14, 16, 19, 21, 30
+  action?: string; // Current action from database
 }
 
 /**
@@ -116,40 +125,71 @@ export async function getTodayJobs(authToken: string): Promise<Job[]> {
 }
 
 /**
- * Update job status (pick-up, drop-off, no-show)
- * Sends GPS coordinates and timestamp
- * @param update - Job update request
+ * Update job status using UpdateMobileLog stored procedure
+ * Matches the stored procedure signature in update.sql
+ * 
+ * Stored Procedure Parameters:
+ * @tennantid int
+ * @dt datetime
+ * @longitude varchar(50)
+ * @userLogon nvarchar(20) - Format: DRITLC
+ * @action varchar(20) - 'Checkedin', 'Checkedout', 'NoShow', 'CancelALL', 'CancelDropOff', 'started', 'completed'
+ * @Latitude varchar(20)
+ * @role nchar(10) - 'Driver' or 'User'
+ * @eventid int - webeventid
+ * @Logid int OUTPUT
+ * 
+ * @param update - Job update request matching stored procedure parameters
  */
-export async function updateJobStatus(update: JobUpdateRequest): Promise<boolean> {
+export async function updateJobStatus(update: JobUpdateRequest): Promise<{ success: boolean; logid?: number; message?: string }> {
   try {
-    // TODO: Replace with actual API endpoint
-    // Based on chat history, updates are sent as URL strings with delimited parameters
-    // API fires stored procedure to update SQL database in real-time
+    // Format datetime as SQL Server expects: YYYY-MM-DD HH:MM:SS
+    const dt = new Date().toISOString().replace('T', ' ').substring(0, 19);
     
-    const response = await fetch(`${API_BASE_URL}/api/jobs/update`, {
+    // Build URL-encoded parameters matching stored procedure
+    const params = new URLSearchParams({
+      tennantid: update.tennantid.toString(),
+      dt: dt,
+      longitude: update.longitude,
+      userLogon: update.userLogon, // Full DRITLC format
+      action: update.action,
+      Latitude: update.latitude,
+      role: update.role,
+      eventid: update.eventid.toString(),
+    });
+
+    // Add note if provided
+    if (update.note) {
+      params.append('note', update.note);
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/UpdateMobileLog`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${update.authToken}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        requestId: update.requestId,
-        status: update.status,
-        gpsLat: update.gpsLat?.toString() || '',
-        gpsLon: update.gpsLon?.toString() || '',
-        note: update.note || '',
-        timestamp: new Date().toISOString(),
-      }).toString(),
+      body: params.toString(),
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 
-    return true;
+    // Stored procedure returns @Logid as OUTPUT parameter
+    const data = await response.json();
+    
+    return {
+      success: true,
+      logid: data.logid,
+    };
   } catch (error) {
     console.error('Update job error:', error);
-    return false;
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update job status',
+    };
   }
 }
 

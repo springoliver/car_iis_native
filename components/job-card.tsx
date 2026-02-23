@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
 export interface Job {
-  requestId: string;
+  webeventid?: number; // Primary ID from database (used in stored procedure)
+  requestId?: string; // Legacy/compatibility field
   name: string;
   location: string;
   date: string;
@@ -10,6 +11,8 @@ export interface Job {
   duration: string;
   status?: 'open' | 'in-progress' | 'completed' | 'no-show';
   phone?: string;
+  eventstatus?: number; // From database: 1, 14, 16, 19, 21, 30
+  action?: string; // Current action from database
 }
 
 interface JobCardProps {
@@ -48,9 +51,11 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
     }
   };
 
+  const displayId = job.webeventid || job.requestId || 'N/A';
+
   return (
     <View style={styles.card}>
-      <Text style={styles.requestId}>#Request ID : {job.requestId}</Text>
+      <Text style={styles.requestId}>#Request ID : {displayId}</Text>
       
       <View style={styles.details}>
         <Text style={styles.label}>Name:</Text>
