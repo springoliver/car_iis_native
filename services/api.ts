@@ -49,24 +49,32 @@ export interface Job {
 /**
  * Login to the system
  * Format: DRITLC where TLC is tenant identifier
- * @param username - Format: DRITLC (e.g., DR1TLC)
- * @param password - User password
+ * Old app only requires username - password is handled server-side or remembered
+ * @param username - Format: DRITLC (e.g., DR1TLC) or email format
+ * @param password - Optional, not used in old app
  */
-export async function login(username: string, password: string): Promise<LoginResponse> {
+export async function login(username: string, password: string = ''): Promise<LoginResponse> {
   try {
     // TODO: Replace with actual API endpoint
     // Based on chat history, the API expects URL strings with delimited parameters
     // The login format sends DR(x)TLC as first param
+    // Old app only sends username, password is optional/remembered
+    
+    const params = new URLSearchParams({
+      username: username, // Format: DRITLC or email
+    });
+    
+    // Only add password if provided (for backward compatibility)
+    if (password) {
+      params.append('password', password);
+    }
     
     const response = await fetch(`${API_BASE_URL}/api/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        username: username, // Format: DRITLC
-        password: password,
-      }).toString(),
+      body: params.toString(),
     });
 
     if (!response.ok) {

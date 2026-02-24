@@ -6,13 +6,12 @@ import { login } from '@/services/api';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSignIn = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter both username and password');
+    if (!username) {
+      Alert.alert('Error', 'Please enter your username');
       return;
     }
 
@@ -22,8 +21,9 @@ export default function LoginScreen() {
       // Call IIS API for authentication
       // Format: DRITLC where TLC is tenant identifier (e.g., DR1TLC)
       // API endpoint: https://advantecis-csmwebservicebus.com/api/login
+      // Old app only uses username - password is handled server-side or remembered
       
-      const result = await login(email, password);
+      const result = await login(username, ''); // Password not required in old app
       
       if (result.success && result.authToken) {
         // TODO: Store auth token in secure storage (expo-secure-store)
@@ -32,7 +32,7 @@ export default function LoginScreen() {
       } else {
         Alert.alert(
           'Login Failed',
-          result.message || 'Invalid credentials. Please check your username and password.'
+          result.message || 'Invalid username. Please check and try again.'
         );
       }
     } catch (error) {
@@ -67,26 +67,14 @@ export default function LoginScreen() {
           {/* Green Separator */}
           <View style={styles.separator} />
           
-          {/* Username Input (Format: DRITLC) */}
+          {/* Username/Email Input - Only field needed */}
           <TextInput
             style={styles.input}
-            placeholder="DR1TLC"
+            placeholder="james@gmail.com"
             placeholderTextColor="#999"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="characters"
-            autoCorrect={false}
-          />
-          <View style={styles.inputUnderline} />
-          
-          {/* Password Input */}
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#999"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
+            value={username}
+            onChangeText={setUsername}
+            keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
           />
@@ -120,12 +108,13 @@ const styles = StyleSheet.create({
   },
   whiteSection: {
     position: 'absolute',
-    top: -100,
-    left: -50,
-    width: '150%',
-    height: '70%',
+    top: 0,
+    left: 0,
+    width: '120%',
+    height: '65%',
     backgroundColor: '#FFF',
-    transform: [{ rotate: '-20deg' }],
+    transform: [{ rotate: '-15deg' }],
+    transformOrigin: 'top left',
   },
   loginCard: {
     backgroundColor: '#FFF',
@@ -163,6 +152,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     marginTop: 20,
+    minHeight: 48,
   },
   inputUnderline: {
     height: 1,
@@ -175,10 +165,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 16,
     marginHorizontal: 20,
-    marginTop: 24,
+    marginTop: 32,
     marginBottom: 24,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   signInButtonDisabled: {
     opacity: 0.6,
