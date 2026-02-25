@@ -48,17 +48,21 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView 
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <StatusBar style="light" />
       
-      {/* Gradient Background */}
-      <View style={styles.gradient}>
-        {/* Diagonal White Section */}
-        <View style={styles.whiteSection} />
+      {/* Background Container */}
+      <View style={styles.backgroundContainer}>
+        {/* Top dark gray section with small purple triangle */}
+        <View style={styles.topSection}>
+          <View style={styles.topPurpleTriangle} />
+        </View>
         
-        {/* Login Card */}
-        <View style={styles.loginCard}>
+        {/* Main white area */}
+        <View style={styles.whiteMainArea}>
+          {/* Login Card */}
+          <View style={styles.loginCard}>
           {/* Login Header */}
           <View style={styles.loginHeader}>
             <Text style={styles.loginHeaderText}>Login</Text>
@@ -90,6 +94,14 @@ export default function LoginScreen() {
               {loading ? 'SIGNING IN...' : 'SIGN IN'}
             </Text>
           </TouchableOpacity>
+          </View>
+        </View>
+        
+        {/* Bottom purple section with angular white shapes */}
+        <View style={styles.bottomPurpleSection}>
+          <View style={styles.whiteTriangle1} />
+          <View style={styles.whiteTriangle2} />
+          <View style={styles.whiteTrapezoid} />
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -100,39 +112,83 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  gradient: {
+  backgroundContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#6C5CE7', // Purple-blue gradient base color
   },
-  whiteSection: {
+  topSection: {
+    height: '15%',
+    backgroundColor: '#4A4A4A',
+    position: 'relative',
+  },
+  topPurpleTriangle: {
     position: 'absolute',
     top: 0,
     left: 0,
-    width: '120%',
-    height: '65%',
+    width: 0,
+    height: 0,
+    borderTopWidth: 40,
+    borderRightWidth: 40,
+    borderTopColor: '#6C5CE7',
+    borderRightColor: 'transparent',
+  },
+  whiteMainArea: {
+    flex: 1,
     backgroundColor: '#FFF',
-    transform: [{ rotate: '-15deg' }],
-    transformOrigin: 'top left',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loginCard: {
     backgroundColor: '#FFF',
-    borderRadius: 12,
+    borderRadius: 8,
     width: '85%',
     maxWidth: 400,
     padding: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    elevation: 5,
+  },
+  bottomPurpleSection: {
+    height: '25%',
+    backgroundColor: '#6C5CE7',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  whiteTriangle1: {
+    position: 'absolute',
+    top: -30,
+    left: '10%',
+    width: 0,
+    height: 0,
+    borderBottomWidth: 60,
+    borderRightWidth: 40,
+    borderBottomColor: '#FFF',
+    borderRightColor: 'transparent',
+    transform: [{ rotate: '15deg' }],
+  },
+  whiteTriangle2: {
+    position: 'absolute',
+    top: -40,
+    left: '40%',
+    width: 0,
+    height: 0,
+    borderBottomWidth: 70,
+    borderLeftWidth: 50,
+    borderBottomColor: '#FFF',
+    borderLeftColor: 'transparent',
+    transform: [{ rotate: '-10deg' }],
+  },
+  whiteTrapezoid: {
+    position: 'absolute',
+    top: -35,
+    right: '15%',
+    width: 80,
+    height: 50,
+    backgroundColor: '#FFF',
+    transform: [{ rotate: '5deg' }, { skewX: '10deg' }],
   },
   loginHeader: {
     backgroundColor: '#4A4A4A',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    paddingVertical: 16,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    paddingVertical: 14,
     paddingHorizontal: 20,
   },
   loginHeaderText: {
@@ -150,9 +206,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
     marginTop: 20,
-    minHeight: 48,
+    backgroundColor: 'transparent',
   },
   inputUnderline: {
     height: 1,
@@ -161,19 +217,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   signInButton: {
-    backgroundColor: '#6C5CE7',
+    backgroundColor: '#6C5CE7', // Keep button purple-blue as shown in screenshot
     borderRadius: 8,
-    paddingVertical: 16,
+    paddingVertical: 14,
     marginHorizontal: 20,
-    marginTop: 32,
+    marginTop: 28,
     marginBottom: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    // Use elevation instead of shadow props
+    elevation: 3,
   },
   signInButtonDisabled: {
     opacity: 0.6,
@@ -182,6 +235,6 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
 });
