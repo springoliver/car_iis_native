@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { login } from '@/services/api';
@@ -52,17 +53,15 @@ export default function LoginScreen() {
     >
       <StatusBar style="light" />
       
-      {/* Background Container */}
-      <View style={styles.backgroundContainer}>
-        {/* Top dark gray section with small purple triangle */}
-        <View style={styles.topSection}>
-          <View style={styles.topPurpleTriangle} />
-        </View>
-        
-        {/* Main white area */}
-        <View style={styles.whiteMainArea}>
-          {/* Login Card */}
-          <View style={styles.loginCard}>
+      {/* Beautiful Gradient Background */}
+      <LinearGradient
+        colors={['#667eea', '#764ba2', '#f093fb']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradientBackground}
+      >
+        {/* Login Card */}
+        <View style={styles.loginCard}>
           {/* Login Header */}
           <View style={styles.loginHeader}>
             <Text style={styles.loginHeaderText}>Login</Text>
@@ -71,39 +70,34 @@ export default function LoginScreen() {
           {/* Green Separator */}
           <View style={styles.separator} />
           
-          {/* Username/Email Input - Only field needed */}
-          <TextInput
-            style={styles.input}
-            placeholder="james@gmail.com"
-            placeholderTextColor="#999"
-            value={username}
-            onChangeText={setUsername}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <View style={styles.inputUnderline} />
+          {/* Username/Email Input */}
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="james@gmail.com"
+              placeholderTextColor="#999"
+              value={username}
+              onChangeText={setUsername}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={styles.inputUnderline} />
+          </View>
           
           {/* Sign In Button */}
           <TouchableOpacity
             style={[styles.signInButton, loading && styles.signInButtonDisabled]}
             onPress={handleSignIn}
             disabled={loading}
+            activeOpacity={0.8}
           >
             <Text style={styles.signInButtonText}>
               {loading ? 'SIGNING IN...' : 'SIGN IN'}
             </Text>
           </TouchableOpacity>
-          </View>
         </View>
-        
-        {/* Bottom purple section with angular white shapes */}
-        <View style={styles.bottomPurpleSection}>
-          <View style={styles.whiteTriangle1} />
-          <View style={styles.whiteTriangle2} />
-          <View style={styles.whiteTrapezoid} />
-        </View>
-      </View>
+      </LinearGradient>
     </KeyboardAvoidingView>
   );
 }
@@ -112,121 +106,70 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  backgroundContainer: {
+  gradientBackground: {
     flex: 1,
-  },
-  topSection: {
-    height: '15%',
-    backgroundColor: '#4A4A4A',
-    position: 'relative',
-  },
-  topPurpleTriangle: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: 0,
-    height: 0,
-    borderTopWidth: 40,
-    borderRightWidth: 40,
-    borderTopColor: '#6C5CE7',
-    borderRightColor: 'transparent',
-  },
-  whiteMainArea: {
-    flex: 1,
-    backgroundColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
   },
   loginCard: {
     backgroundColor: '#FFF',
-    borderRadius: 8,
-    width: '85%',
+    borderRadius: 16,
+    width: '100%',
     maxWidth: 400,
-    padding: 0,
-    elevation: 5,
-  },
-  bottomPurpleSection: {
-    height: '25%',
-    backgroundColor: '#6C5CE7',
-    position: 'relative',
     overflow: 'hidden',
-  },
-  whiteTriangle1: {
-    position: 'absolute',
-    top: -30,
-    left: '10%',
-    width: 0,
-    height: 0,
-    borderBottomWidth: 60,
-    borderRightWidth: 40,
-    borderBottomColor: '#FFF',
-    borderRightColor: 'transparent',
-    transform: [{ rotate: '15deg' }],
-  },
-  whiteTriangle2: {
-    position: 'absolute',
-    top: -40,
-    left: '40%',
-    width: 0,
-    height: 0,
-    borderBottomWidth: 70,
-    borderLeftWidth: 50,
-    borderBottomColor: '#FFF',
-    borderLeftColor: 'transparent',
-    transform: [{ rotate: '-10deg' }],
-  },
-  whiteTrapezoid: {
-    position: 'absolute',
-    top: -35,
-    right: '15%',
-    width: 80,
-    height: 50,
-    backgroundColor: '#FFF',
-    transform: [{ rotate: '5deg' }, { skewX: '10deg' }],
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
   },
   loginHeader: {
     backgroundColor: '#4A4A4A',
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    paddingVertical: 14,
+    paddingVertical: 18,
     paddingHorizontal: 20,
   },
   loginHeaderText: {
     color: '#FFF',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   separator: {
-    height: 3,
+    height: 4,
     backgroundColor: '#4CAF50',
     width: '100%',
+  },
+  inputContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
   },
   input: {
     fontSize: 16,
     color: '#333',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    marginTop: 20,
+    paddingVertical: 16,
     backgroundColor: 'transparent',
   },
   inputUnderline: {
-    height: 1,
+    height: 1.5,
     backgroundColor: '#E0E0E0',
-    marginHorizontal: 20,
     marginTop: 4,
   },
   signInButton: {
-    backgroundColor: '#6C5CE7', // Keep button purple-blue as shown in screenshot
-    borderRadius: 8,
-    paddingVertical: 14,
+    backgroundColor: '#667eea',
+    borderRadius: 12,
+    paddingVertical: 16,
     marginHorizontal: 20,
-    marginTop: 28,
-    marginBottom: 24,
+    marginTop: 32,
+    marginBottom: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    // Use elevation instead of shadow props
-    elevation: 3,
+    elevation: 4,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   signInButtonDisabled: {
     opacity: 0.6,

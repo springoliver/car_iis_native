@@ -77,7 +77,7 @@ export async function login(username: string, password: string = ''): Promise<Lo
       body: params.toString(),
     });
 
-    if (!response.ok) {
+    if (response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
