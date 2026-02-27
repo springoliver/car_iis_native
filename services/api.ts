@@ -77,11 +77,14 @@ export async function login(username: string, password: string = ''): Promise<Lo
       body: params.toString(),
     });
 
-    if (response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 
     const data = await response.json();
+    
+    console.log('Login response:', data);
     
     // Store auth token for subsequent requests
     if (data.authToken) {
@@ -91,14 +94,19 @@ export async function login(username: string, password: string = ''): Promise<Lo
 
     return {
       success: true,
-      authToken: data.authToken,
-      driverData: data.driverData,
+      authToken: data.authToken || data.token,
+      driverData: data.driverData || data.data,
+      tennantid: data.tennantid,
+      userLogon: data.userLogon || username,
+      role: data.role || 'Driver',
     };
   } catch (error) {
     console.error('Login error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to connect to server';
+    console.error('Error details:', errorMessage);
     return {
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to connect to server',
+      message: errorMessage,
     };
   }
 }
