@@ -54,8 +54,32 @@ export interface Job {
  * @param password - Optional, not used in old app
  */
 export async function login(username: string, password: string = ''): Promise<LoginResponse> {
+  // MOCK MODE: Return success for UI testing
+  // TODO: Remove this mock and use real API when backend is ready
+  const USE_MOCK = true; // Set to false when ready to use real API
+  
+  if (USE_MOCK) {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Mock successful login response
+    console.log('🔵 MOCK MODE: Login successful for', username);
+    
+    return {
+      success: true,
+      authToken: 'mock_auth_token_' + Date.now(),
+      driverData: {
+        username: username,
+        name: 'John Driver',
+      },
+      tennantid: 1,
+      userLogon: username.startsWith('DR') ? username : `DR1TLC`,
+      role: 'Driver',
+    };
+  }
+  
+  // REAL API CODE (will be used when USE_MOCK = false)
   try {
-    // TODO: Replace with actual API endpoint
     // Based on chat history, the API expects URL strings with delimited parameters
     // The login format sends DR(x)TLC as first param
     // Old app only sends username, password is optional/remembered

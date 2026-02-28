@@ -28,7 +28,9 @@ export default function LoginScreen() {
       
       if (result.success && result.authToken) {
         // TODO: Store auth token in secure storage (expo-secure-store)
+        // Store username for welcome screen
         // For now, we'll pass it via navigation params or context
+        console.log('✅ Login successful! Redirecting to welcome screen...');
         router.replace('/welcome');
       } else {
         Alert.alert(
