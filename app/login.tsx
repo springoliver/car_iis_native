@@ -83,6 +83,7 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              underlineColorAndroid="transparent"
             />
             <View style={styles.inputUnderline} />
           </View>
@@ -152,6 +153,8 @@ const styles = StyleSheet.create({
     color: '#333',
     paddingVertical: 16,
     backgroundColor: 'transparent',
+    borderWidth: 0,
+    outlineStyle: 'none',
   },
   inputUnderline: {
     height: 1.5,
