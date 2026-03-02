@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { login } from '@/services/api';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { login } from '@/services/api';
+import React, { useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -147,11 +147,13 @@ const styles = StyleSheet.create({
   inputContainer: {
     paddingHorizontal: 20,
     paddingTop: 24,
+    paddingBottom: 8,
   },
   input: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#333',
     paddingVertical: 16,
+    paddingHorizontal: 16,
     backgroundColor: 'transparent',
     borderWidth: 0,
     outlineStyle: 'none',
