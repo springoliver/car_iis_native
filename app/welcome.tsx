@@ -1,16 +1,33 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const userName = params.userName as string || 'User';
+  
   const currentDate = new Date().toLocaleDateString('en-US', {
     weekday: 'short',
     month: '2-digit',
     day: '2-digit',
     year: 'numeric',
   });
+
+  const handleAppointmentPress = async () => {
+    // Store user data for jobs screen
+    if (params.tennantId && params.userId && params.userName) {
+      await AsyncStorage.setItem('userData', JSON.stringify({
+        tennantId: params.tennantId,
+        userId: params.userId,
+        userName: params.userName,
+        roleType: params.roleType,
+      }));
+    }
+    router.push('/(tabs)/' as any);
+  };
 
   return (
     <View style={styles.container}>
@@ -28,7 +45,7 @@ export default function WelcomeScreen() {
 
       {/* Main Content */}
       <ScrollView contentContainerStyle={styles.content} style={styles.scrollView}>
-        <Text style={styles.welcomeText}>Welcome, jfishxxx</Text>
+        <Text style={styles.welcomeText}>Welcome, {userName}</Text>
         
         <View style={styles.dateCard}>
           <Text style={styles.dateText}>{currentDate}</Text>
@@ -36,7 +53,7 @@ export default function WelcomeScreen() {
 
         <TouchableOpacity
           style={styles.appointmentButton}
-          onPress={() => router.push('/(tabs)/')}
+          onPress={handleAppointmentPress}
         >
           <Text style={styles.appointmentButtonText}>TODAY'S APPOINTMENT</Text>
         </TouchableOpacity>

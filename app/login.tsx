@@ -8,6 +8,7 @@ import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, Tou
 export default function LoginScreen() {
   const router = useRouter();
   const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSignIn = async () => {
@@ -15,30 +16,50 @@ export default function LoginScreen() {
       Alert.alert('Error', 'Please enter your username');
       return;
     }
+    
+    if (!password) {
+      Alert.alert('Error', 'Please enter your password');
+      return;
+    }
 
     setLoading(true);
     
     try {
       // Call IIS API for authentication
-      // Format: DRITLC where TLC is tenant identifier (e.g., DR1TLC)
-      // API endpoint: https://advantecis-csmwebservicebus.com/api/login
-      // Old app only uses username - password is handled server-side or remembered
+      // Endpoint: POST /business/login
+      // Request: { username: string, password: string }
+      // Response: { TennantId, UserId, RoleType, LoginStatus, UserName }
       
-      const result = await login(username, ''); // Password not required in old app
+      const result = await login(username, password);
       
-      if (result.success && result.authToken) {
-        // TODO: Store auth token in secure storage (expo-secure-store)
-        // Store username for welcome screen
-        // For now, we'll pass it via navigation params or context
-        console.log('✅ Login successful! Redirecting to welcome screen...');
-        router.replace('/welcome');
+      if (result.success && result.LoginStatus === 'VALID') {
+        // TODO: Store auth data in secure storage (expo-secure-store)
+        // Store: TennantId, UserId, UserName, RoleType
+        console.log('✅ Login successful!', {
+          TennantId: result.TennantId,
+          UserId: result.UserId,
+          UserName: result.UserName,
+          RoleType: result.RoleType,
+        });
+        
+        // Navigate to welcome screen with user data
+        router.replace({
+          pathname: '/welcome',
+          params: {
+            userName: result.UserName || username,
+            tennantId: result.TennantId?.toString() || '',
+            userId: result.UserId || '',
+            roleType: result.RoleType || '',
+          },
+        });
       } else {
         Alert.alert(
           'Login Failed',
-          result.message || 'Invalid username. Please check and try again.'
+          result.message || 'Invalid username or password. Please check and try again.'
         );
       }
     } catch (error) {
+      console.error('Login error:', error);
       Alert.alert(
         'Connection Error',
         'Failed to connect to server. Please check your internet connection and try again.'
@@ -72,15 +93,30 @@ export default function LoginScreen() {
           {/* Green Separator */}
           <View style={styles.separator} />
           
-          {/* Username/Email Input */}
+          {/* Username Input */}
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
-              placeholder="james@gmail.com"
+              placeholder="Username (e.g., adminDMO)"
               placeholderTextColor="#999"
               value={username}
               onChangeText={setUsername}
-              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              underlineColorAndroid="transparent"
+            />
+            <View style={styles.inputUnderline} />
+          </View>
+          
+          {/* Password Input */}
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#999"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
               underlineColorAndroid="transparent"

@@ -1,58 +1,98 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import { JobCard, Job } from '@/components/job-card';
 import { mockJobs } from '@/data/mock-jobs';
-import { updateJobStatus, getTodayJobs, type JobUpdateRequest } from '@/services/api';
-import { parseUserLogon } from '@/utils/auth';
+import { getDriverEvents, updateDriverEventStatus, driverEventToJob, type DriverEvent, type UpdateDriverEventStatusRequest } from '@/services/api';
 
 type TabType = 'open' | 'in-progress' | 'completed';
 
+interface UserData {
+  tennantId: number;
+  userId: string;
+  userName: string;
+  roleType: string;
+}
+
 export default function JobsScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('open');
-  const [jobs, setJobs] = useState<Job[]>(mockJobs);
-  const [loading, setLoading] = useState(false);
-  const [authToken, setAuthToken] = useState<string>(''); // TODO: Get from secure storage
-  const [userLogon, setUserLogon] = useState<string>(''); // TODO: Get from login
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   const openJobs = jobs.filter(job => job.status === 'open');
   const inProgressJobs = jobs.filter(job => job.status === 'in-progress');
   const completedJobs = jobs.filter(job => job.status === 'completed' || job.status === 'no-show');
 
-  // Get current GPS location
+  // Load user data and fetch driver events
   useEffect(() => {
     (async () => {
       try {
-        // TODO: Install expo-location: npx expo install expo-location
-        // For now, using mock location
-        // const { status } = await Location.requestForegroundPermissionsAsync();
-        // if (status === 'granted') {
-        //   const locationData = await Location.getCurrentPositionAsync({});
-        //   setLocation({
-        //     latitude: locationData.coords.latitude,
-        //     longitude: locationData.coords.longitude,
-        //   });
-        // }
-        // Mock location for testing
-        setLocation({ latitude: 40.7128, longitude: -74.0060 }); // NYC coordinates
+        // Load user data from storage
+        const storedData = await AsyncStorage.getItem('userData');
+        if (storedData) {
+          const user: UserData = JSON.parse(storedData);
+          setUserData(user);
+          
+          // Fetch driver events
+          await fetchDriverEvents(user);
+        } else {
+          Alert.alert('Error', 'Please log in first');
+        }
+        
+        // Get GPS location
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const locationData = await Location.getCurrentPositionAsync({});
+          setLocation({
+            latitude: locationData.coords.latitude,
+            longitude: locationData.coords.longitude,
+          });
+        } else {
+          // Use default location if permission denied
+          setLocation({ latitude: 40.7128, longitude: -74.0060 });
+        }
       } catch (error) {
-        console.error('Location error:', error);
+        console.error('Initialization error:', error);
+        Alert.alert('Error', 'Failed to initialize. Please try again.');
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);
 
+  const fetchDriverEvents = async (user: UserData) => {
+    try {
+      setLoading(true);
+      const driverEvents = await getDriverEvents(user.userName, user.userId, user.tennantId);
+      
+      // Convert DriverEvent to Job format
+      const jobsList = driverEvents.map(driverEventToJob);
+      setJobs(jobsList);
+      
+      console.log('✅ Loaded', jobsList.length, 'driver events');
+    } catch (error) {
+      console.error('❌ Fetch driver events error:', error);
+      Alert.alert('Error', 'Failed to load appointments. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleJobUpdate = async (
     jobId: string,
-    action: 'Checkedin' | 'Checkedout' | 'NoShow' | 'CancelALL',
+    action: 'CHECKEDIN' | 'CHECKEDOUT' | 'NOSHOW' | 'CANCELALL' | 'CANCELDROPOFF',
     newStatus: 'in-progress' | 'completed' | 'no-show'
   ) => {
-    if (!authToken || !userLogon) {
+    if (!userData) {
       Alert.alert('Error', 'Please log in first');
       return;
     }
 
-    const job = jobs.find(j => (j.requestId || j.webeventid?.toString()) === jobId);
+    const job = jobs.find(j => (j.EventId?.toString() || j.requestId || j.webeventid?.toString()) === jobId);
     if (!job) {
       Alert.alert('Error', 'Job not found');
       return;
@@ -61,37 +101,25 @@ export default function JobsScreen() {
     setLoading(true);
 
     try {
-      // Parse user logon to get tenant ID
-      const userInfo = parseUserLogon(userLogon);
-      if (!userInfo) {
-        throw new Error('Invalid user logon format');
-      }
-
       // Get GPS coordinates
       const latitude = location?.latitude?.toString() || '0';
       const longitude = location?.longitude?.toString() || '0';
 
-      // Build update request matching stored procedure parameters
-      const updateRequest: JobUpdateRequest = {
-        eventid: job.webeventid || parseInt(job.requestId || '0'),
-        action: action,
-        latitude: latitude,
-        longitude: longitude,
-        userLogon: userLogon,
-        tennantid: userInfo.tennantid,
-        role: 'Driver', // App is for drivers
-        authToken: authToken,
+      // Build update request
+      const updateRequest: UpdateDriverEventStatusRequest = {
+        EventId: job.EventId || job.webeventid || parseInt(job.requestId || '0'),
+        EventStatus: action,
+        Latitude: latitude,
+        Longitude: longitude,
+        TenantId: userData.tennantId,
+        UserName: userData.userName,
       };
 
-      const result = await updateJobStatus(updateRequest);
+      const result = await updateDriverEventStatus(updateRequest);
 
       if (result.success) {
-        // Update local state
-        setJobs(jobs.map(j => 
-          (j.requestId || j.webeventid?.toString()) === jobId 
-            ? { ...j, status: newStatus as any } 
-            : j
-        ));
+        // Refresh driver events to get updated status
+        await fetchDriverEvents(userData);
         
         // Switch to appropriate tab
         if (newStatus === 'in-progress') {
@@ -103,6 +131,7 @@ export default function JobsScreen() {
         Alert.alert('Update Failed', result.message || 'Failed to update job status');
       }
     } catch (error) {
+      console.error('Update error:', error);
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update job');
     } finally {
       setLoading(false);
@@ -110,19 +139,19 @@ export default function JobsScreen() {
   };
 
   const handleStart = (jobId: string) => {
-    handleJobUpdate(jobId, 'Checkedin', 'in-progress');
+    handleJobUpdate(jobId, 'CHECKEDIN', 'in-progress');
   };
 
   const handleNoShow = (jobId: string) => {
-    handleJobUpdate(jobId, 'NoShow', 'no-show');
+    handleJobUpdate(jobId, 'NOSHOW', 'no-show');
   };
 
   const handleStop = (jobId: string) => {
-    handleJobUpdate(jobId, 'Checkedout', 'completed');
+    handleJobUpdate(jobId, 'CHECKEDOUT', 'completed');
   };
 
   const handleCancel = (jobId: string) => {
-    handleJobUpdate(jobId, 'CancelALL', 'no-show');
+    handleJobUpdate(jobId, 'CANCELALL', 'no-show');
   };
 
   const renderJobs = () => {
@@ -163,7 +192,7 @@ export default function JobsScreen() {
     return (
       <ScrollView style={styles.jobsList}>
         {jobsToShow.map((job) => {
-          const jobId = job.webeventid?.toString() || job.requestId || '';
+          const jobId = job.EventId?.toString() || job.webeventid?.toString() || job.requestId || '';
           return (
             <JobCard
               key={jobId}
@@ -195,7 +224,7 @@ export default function JobsScreen() {
           <TouchableOpacity style={styles.backButton}>
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.welcomeText}>Welcome, jfishxxx</Text>
+          <Text style={styles.welcomeText}>Welcome, {userData?.userName || 'User'}</Text>
         </View>
       </View>
 

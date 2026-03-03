@@ -3,14 +3,22 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
 export interface Job {
   webeventid?: number; // Primary ID from database (used in stored procedure)
+  EventId?: number; // Driver event ID
   requestId?: string; // Legacy/compatibility field
   name: string;
+  FullName?: string; // Full name from driver event
   location: string;
+  CustomerAddress?: string; // Address from driver event
+  City?: string; // City from driver event
   date: string;
   appointmentTime: string;
   duration: string;
   status?: 'open' | 'in-progress' | 'completed' | 'no-show';
   phone?: string;
+  HomePhone?: string; // Phone from driver event
+  EventStatus?: string; // Status string: "CHECKEDIN", "CHECKEDOUT", etc.
+  Event?: string; // Event type: "pickup", "drop off"
+  Route?: number; // Route number
   eventstatus?: number; // From database: 1, 14, 16, 19, 21, 30
   action?: string; // Current action from database
 }
@@ -51,20 +59,31 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
     }
   };
 
-  const displayId = job.webeventid || job.requestId || 'N/A';
+  const displayId = job.EventId || job.webeventid || job.requestId || 'N/A';
+  const displayName = job.FullName || job.name;
+  const displayLocation = job.CustomerAddress || job.location;
+  const displayPhone = job.HomePhone || job.phone;
+  const displayCity = job.City ? `, ${job.City}` : '';
 
   return (
     <View style={styles.card}>
       <Text style={styles.requestId}>#Request ID : {displayId}</Text>
       
+      {job.Event && (
+        <View style={styles.details}>
+          <Text style={styles.label}>Event:</Text>
+          <Text style={styles.value}>{job.Event.toUpperCase()}</Text>
+        </View>
+      )}
+      
       <View style={styles.details}>
         <Text style={styles.label}>Name:</Text>
-        <Text style={styles.value}>{job.name}</Text>
+        <Text style={styles.value}>{displayName}</Text>
       </View>
 
       <View style={styles.details}>
         <Text style={styles.label}>Location:</Text>
-        <Text style={styles.value}>{job.location} {job.phone && job.phone}</Text>
+        <Text style={styles.value}>{displayLocation}{displayCity} {displayPhone && `(${displayPhone})`}</Text>
       </View>
 
       <View style={styles.details}>
