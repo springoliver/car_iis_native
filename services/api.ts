@@ -5,10 +5,30 @@
  */
 
 // API Base URL Configuration
-// For testing with local server: http://localhost
-// For production: https://advantecis-csmwebservicebus.com
-// You can also set this via environment variable or config file
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? 'http://localhost' : 'https://advantecis-csmwebservicebus.com');
+// CORS Issue: When testing on web (browser), CORS blocks requests to different origins
+// Solutions:
+// 1. Test on mobile device/emulator (iOS/Android) - CORS doesn't apply
+// 2. Configure server to allow CORS headers (if you have server access)
+// 3. Use a proxy server for web development
+import { Platform } from 'react-native';
+
+const getApiBaseUrl = () => {
+  // For web platform, we need to handle CORS
+  // Option 1: Use relative path if server supports it (unlikely)
+  // Option 2: Use full URL and handle CORS error with helpful message
+  // Option 3: Test on mobile where CORS doesn't apply
+  
+  if (Platform.OS === 'web') {
+    // On web, try to use the server URL directly
+    // If CORS error occurs, user should test on mobile or configure server CORS
+    return process.env.EXPO_PUBLIC_API_URL || 'http://localhost';
+  }
+  
+  // For mobile (iOS/Android), use full URL - CORS doesn't apply
+  return process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? 'http://localhost' : 'https://advantecis-csmwebservicebus.com');
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 export interface LoginRequest {
   username: string; // Format: usernameTLC (e.g., adminDMO) - server extracts tenant code
@@ -91,12 +111,19 @@ export interface Job {
  */
 export async function login(username: string, password: string): Promise<LoginResponse> {
   try {
-    console.log('🔵 Login request:', { username, password: '***' });
+    console.log('🔵 Login request:', { username, password: '***', platform: Platform.OS, apiUrl: API_BASE_URL });
     
-    const response = await fetch(`${API_BASE_URL}/business/login`, {
+    const url = `${API_BASE_URL}/business/login`;
+    console.log('🔵 Login URL:', url);
+    
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        // Add CORS headers for web (may not work if server doesn't allow)
+        ...(Platform.OS === 'web' && {
+          'Access-Control-Allow-Origin': '*',
+        }),
       },
       body: JSON.stringify({
         username: username,
@@ -135,7 +162,13 @@ export async function login(username: string, password: string): Promise<LoginRe
     }
   } catch (error) {
     console.error('❌ Login error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to connect to server';
+    let errorMessage = error instanceof Error ? error.message : 'Failed to connect to server';
+    
+    // Check if it's a CORS error (web browser)
+    if (Platform.OS === 'web' && (errorMessage.includes('CORS') || errorMessage.includes('Failed to fetch'))) {
+      errorMessage = 'CORS Error: Please test on mobile device/emulator (iOS/Android) instead of web browser. CORS only affects web browsers. See CORS_SOLUTION.md for details.';
+    }
+    
     return {
       success: false,
       message: errorMessage,
