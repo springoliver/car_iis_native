@@ -53,16 +53,25 @@ export default function LoginScreen() {
           },
         });
       } else {
+        // Check if it's a CORS error
+        const isCorsError = result.message?.includes('CORS') || result.message?.includes('Failed to fetch');
         Alert.alert(
           'Login Failed',
-          result.message || 'Invalid username or password. Please check and try again.'
+          isCorsError 
+            ? 'CORS Error: Please test on mobile device/emulator (iOS/Android) instead of web browser. CORS only affects web browsers. Mobile apps don\'t have CORS restrictions.\n\nTo test on mobile:\n• iOS: Press "i" in terminal\n• Android: Press "a" in terminal\n• Physical device: Scan QR code with Expo Go app'
+            : (result.message || 'Invalid username or password. Please check and try again.')
         );
       }
     } catch (error) {
       console.error('Login error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to connect to server';
+      const isCorsError = errorMessage.includes('CORS') || errorMessage.includes('Failed to fetch');
+      
       Alert.alert(
         'Connection Error',
-        'Failed to connect to server. Please check your internet connection and try again.'
+        isCorsError
+          ? 'CORS Error: Please test on mobile device/emulator (iOS/Android) instead of web browser. CORS only affects web browsers. Mobile apps don\'t have CORS restrictions.\n\nTo test on mobile:\n• iOS: Press "i" in terminal\n• Android: Press "a" in terminal\n• Physical device: Scan QR code with Expo Go app'
+          : 'Failed to connect to server. Please check your internet connection and try again.'
       );
     } finally {
       setLoading(false);
@@ -97,7 +106,7 @@ export default function LoginScreen() {
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
-              placeholder="Username (e.g., adminDMO)"
+              placeholder="Username"
               placeholderTextColor="#999"
               value={username}
               onChangeText={setUsername}
@@ -157,11 +166,15 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     overflow: 'hidden',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+    } : {
+      elevation: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+    }),
   },
   loginHeader: {
     backgroundColor: '#4A4A4A',
@@ -208,11 +221,15 @@ const styles = StyleSheet.create({
     marginBottom: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 4px 8px rgba(102, 126, 234, 0.3)',
+    } : {
+      elevation: 4,
+      shadowColor: '#667eea',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+    }),
   },
   signInButtonDisabled: {
     opacity: 0.6,
