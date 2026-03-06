@@ -116,19 +116,26 @@ export async function login(username: string, password: string): Promise<LoginRe
     const url = `${API_BASE_URL}/business/login`;
     console.log('🔵 Login URL:', url);
     
+    // Check if we're on web platform - warn about CORS
+    if (Platform.OS === 'web') {
+      console.warn('⚠️ Running on web platform. CORS errors are expected. Please test on mobile device/emulator for full functionality.');
+    }
+    
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // Add CORS headers for web (may not work if server doesn't allow)
-        ...(Platform.OS === 'web' && {
-          'Access-Control-Allow-Origin': '*',
-        }),
       },
       body: JSON.stringify({
         username: username,
         password: password,
       }),
+    }).catch((fetchError) => {
+      // Catch network/CORS errors specifically
+      if (Platform.OS === 'web') {
+        throw new Error('CORS_ERROR: Failed to fetch. Please test on mobile device/emulator (iOS/Android) instead of web browser. CORS only affects web browsers.');
+      }
+      throw fetchError;
     });
 
     if (!response.ok) {
@@ -165,8 +172,14 @@ export async function login(username: string, password: string): Promise<LoginRe
     let errorMessage = error instanceof Error ? error.message : 'Failed to connect to server';
     
     // Check if it's a CORS error (web browser)
-    if (Platform.OS === 'web' && (errorMessage.includes('CORS') || errorMessage.includes('Failed to fetch'))) {
-      errorMessage = 'CORS Error: Please test on mobile device/emulator (iOS/Android) instead of web browser. CORS only affects web browsers. See CORS_SOLUTION.md for details.';
+    const isCorsError = Platform.OS === 'web' && (
+      errorMessage.includes('CORS') || 
+      errorMessage.includes('Failed to fetch') ||
+      errorMessage.includes('CORS_ERROR')
+    );
+    
+    if (isCorsError) {
+      errorMessage = 'CORS_ERROR: Please test on mobile device/emulator (iOS/Android) instead of web browser. CORS only affects web browsers. Mobile apps don\'t have CORS restrictions.';
     }
     
     return {

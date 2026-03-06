@@ -54,23 +54,23 @@ export default function LoginScreen() {
         });
       } else {
         // Check if it's a CORS error
-        const isCorsError = result.message?.includes('CORS') || result.message?.includes('Failed to fetch');
+        const isCorsError = result.message?.includes('CORS') || result.message?.includes('CORS_ERROR') || result.message?.includes('Failed to fetch');
         Alert.alert(
-          'Login Failed',
+          isCorsError ? 'CORS Error - Use Mobile Device' : 'Login Failed',
           isCorsError 
-            ? 'CORS Error: Please test on mobile device/emulator (iOS/Android) instead of web browser. CORS only affects web browsers. Mobile apps don\'t have CORS restrictions.\n\nTo test on mobile:\n• iOS: Press "i" in terminal\n• Android: Press "a" in terminal\n• Physical device: Scan QR code with Expo Go app'
+            ? 'This app must be tested on a mobile device or emulator (iOS/Android), not in a web browser.\n\nCORS only affects web browsers. Mobile apps don\'t have CORS restrictions.\n\nTo test:\n• iOS Simulator: Press "i" in terminal\n• Android Emulator: Press "a" in terminal\n• Physical Device: Scan QR code with Expo Go app'
             : (result.message || 'Invalid username or password. Please check and try again.')
         );
       }
     } catch (error) {
       console.error('Login error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to connect to server';
-      const isCorsError = errorMessage.includes('CORS') || errorMessage.includes('Failed to fetch');
+      const isCorsError = errorMessage.includes('CORS') || errorMessage.includes('CORS_ERROR') || errorMessage.includes('Failed to fetch');
       
       Alert.alert(
-        'Connection Error',
+        isCorsError ? 'CORS Error - Use Mobile Device' : 'Connection Error',
         isCorsError
-          ? 'CORS Error: Please test on mobile device/emulator (iOS/Android) instead of web browser. CORS only affects web browsers. Mobile apps don\'t have CORS restrictions.\n\nTo test on mobile:\n• iOS: Press "i" in terminal\n• Android: Press "a" in terminal\n• Physical device: Scan QR code with Expo Go app'
+          ? 'This app must be tested on a mobile device or emulator (iOS/Android), not in a web browser.\n\nCORS only affects web browsers. Mobile apps don\'t have CORS restrictions.\n\nTo test:\n• iOS Simulator: Press "i" in terminal\n• Android Emulator: Press "a" in terminal\n• Physical Device: Scan QR code with Expo Go app'
           : 'Failed to connect to server. Please check your internet connection and try again.'
       );
     } finally {
@@ -205,7 +205,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: 'transparent',
     borderWidth: 0,
-    outlineStyle: 'none',
+    ...(Platform.OS === 'web' ? {
+      outlineStyle: 'none' as any, // Web-only CSS property
+    } : {}),
   },
   inputUnderline: {
     height: 1.5,
