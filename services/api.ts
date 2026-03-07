@@ -13,19 +13,33 @@
 import { Platform } from 'react-native';
 
 const getApiBaseUrl = () => {
-  // For web platform, we need to handle CORS
-  // Option 1: Use relative path if server supports it (unlikely)
-  // Option 2: Use full URL and handle CORS error with helpful message
-  // Option 3: Test on mobile where CORS doesn't apply
+  // Check for environment variable first (highest priority)
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
   
+  // For web platform, we need to handle CORS
   if (Platform.OS === 'web') {
     // On web, try to use the server URL directly
     // If CORS error occurs, user should test on mobile or configure server CORS
-    return process.env.EXPO_PUBLIC_API_URL || 'http://localhost';
+    return 'http://localhost';
   }
   
-  // For mobile (iOS/Android), use full URL - CORS doesn't apply
-  return process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? 'http://localhost' : 'https://advantecis-csmwebservicebus.com');
+  // For mobile platforms
+  if (__DEV__) {
+    // Development mode - use localhost
+    if (Platform.OS === 'android') {
+      // Android emulator: use 10.0.2.2 to access host machine's localhost
+      // For physical Android device: use your computer's IP address (e.g., http://192.168.1.100)
+      return 'http://10.0.2.2';
+    } else {
+      // iOS simulator: localhost works fine
+      return 'http://localhost';
+    }
+  }
+  
+  // Production mode - use production server
+  return 'https://advantecis-csmwebservicebus.com';
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -116,9 +130,12 @@ export async function login(username: string, password: string): Promise<LoginRe
     const url = `${API_BASE_URL}/business/login`;
     console.log('🔵 Login URL:', url);
     
-    // Check if we're on web platform - warn about CORS
+    // Platform-specific warnings
     if (Platform.OS === 'web') {
       console.warn('⚠️ Running on web platform. CORS errors are expected. Please test on mobile device/emulator for full functionality.');
+    } else if (Platform.OS === 'android' && __DEV__) {
+      console.log('ℹ️ Android emulator: Using 10.0.2.2 to access host localhost');
+      console.log('ℹ️ If using physical Android device, set EXPO_PUBLIC_API_URL to your computer\'s IP (e.g., http://192.168.1.100)');
     }
     
     const response = await fetch(url, {
@@ -178,8 +195,24 @@ export async function login(username: string, password: string): Promise<LoginRe
       errorMessage.includes('CORS_ERROR')
     );
     
+    // Check if it's a network error on Android
+    const isAndroidNetworkError = Platform.OS === 'android' && (
+      errorMessage.includes('Network request failed') ||
+      errorMessage.includes('Failed to fetch') ||
+      errorMessage.includes('NetworkError')
+    );
+    
     if (isCorsError) {
       errorMessage = 'CORS_ERROR: Please test on mobile device/emulator (iOS/Android) instead of web browser. CORS only affects web browsers. Mobile apps don\'t have CORS restrictions.';
+    } else if (isAndroidNetworkError && __DEV__) {
+      errorMessage = 'Network Error: Cannot connect to server.\n\n' +
+        'Android Emulator: Using http://10.0.2.2 (host localhost)\n' +
+        'Physical Android Device: Set EXPO_PUBLIC_API_URL to your computer\'s IP address\n' +
+        'Example: EXPO_PUBLIC_API_URL=http://192.168.1.100\n\n' +
+        'Make sure:\n' +
+        '1. IIS server is running on your computer\n' +
+        '2. Firewall allows connections\n' +
+        '3. Device/emulator can reach your computer\'s network';
     }
     
     return {
