@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -29,6 +30,35 @@ export default function WelcomeScreen() {
     router.push('/(tabs)/' as any);
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            // Clear all stored data
+            try {
+              await AsyncStorage.removeItem('userData');
+              // Navigate to login screen
+              router.replace('/login');
+            } catch (error) {
+              console.error('Error clearing storage:', error);
+              // Still navigate to login even if clearing fails
+              router.replace('/login');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
@@ -41,6 +71,15 @@ export default function WelcomeScreen() {
           </View>
           <Text style={styles.appName}>Client Services Management Software</Text>
         </View>
+        
+        {/* Logout Button */}
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={20} color="#FFF" />
+        </TouchableOpacity>
       </View>
 
       {/* Main Content */}
@@ -72,6 +111,7 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 16,
+    position: 'relative',
   },
   logoContainer: {
     alignItems: 'center',
@@ -96,6 +136,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FFF',
     textAlign: 'center',
+  },
+  logoutButton: {
+    position: 'absolute',
+    top: 50,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FF0000', // Red circular button
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+    } : {
+      elevation: 4,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+    }),
   },
   scrollView: {
     flex: 1,
