@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { Job, JobCard } from '@/components/job-card';
+import { driverEventToJob, getDriverEvents, updateDriverEventStatus, type UpdateDriverEventStatusRequest } from '@/services/api';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import { JobCard, Job } from '@/components/job-card';
-import { mockJobs } from '@/data/mock-jobs';
-import { getDriverEvents, updateDriverEventStatus, driverEventToJob, type DriverEvent, type UpdateDriverEventStatusRequest } from '@/services/api';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type TabType = 'open' | 'in-progress' | 'completed';
 
@@ -17,6 +18,7 @@ interface UserData {
 }
 
 export default function JobsScreen() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('open');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,25 +44,44 @@ export default function JobsScreen() {
         } else {
           Alert.alert('Error', 'Please log in first');
         }
-        
-        // Get GPS location
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const locationData = await Location.getCurrentPositionAsync({});
-          setLocation({
-            latitude: locationData.coords.latitude,
-            longitude: locationData.coords.longitude,
-          });
-        } else {
-          // Use default location if permission denied
-          setLocation({ latitude: 40.7128, longitude: -74.0060 });
-        }
       } catch (error) {
-        console.error('Initialization error:', error);
+        console.error('❌ Initialization error:', error);
         Alert.alert('Error', 'Failed to initialize. Please try again.');
       } finally {
         setLoading(false);
       }
+      
+      // Get GPS location (non-blocking - runs independently)
+      // This won't block the app if location is unavailable
+      (async () => {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            try {
+              const locationData = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+              });
+              setLocation({
+                latitude: locationData.coords.latitude,
+                longitude: locationData.coords.longitude,
+              });
+              console.log('✅ GPS location obtained:', locationData.coords.latitude, locationData.coords.longitude);
+            } catch (locationError) {
+              console.warn('⚠️ Could not get current location, using default:', locationError);
+              // Use default location if location unavailable (e.g., emulator without location set)
+              setLocation({ latitude: 40.7128, longitude: -74.0060 });
+            }
+          } else {
+            console.warn('⚠️ Location permission denied, using default location');
+            // Use default location if permission denied
+            setLocation({ latitude: 40.7128, longitude: -74.0060 });
+          }
+        } catch (locationPermissionError) {
+          console.warn('⚠️ Location permission error, using default location:', locationPermissionError);
+          // Use default location if permission request fails
+          setLocation({ latitude: 40.7128, longitude: -74.0060 });
+        }
+      })();
     })();
   }, []);
 
@@ -154,6 +175,10 @@ export default function JobsScreen() {
     handleJobUpdate(jobId, 'CANCELALL', 'no-show');
   };
 
+  const handleBack = () => {
+    router.back();
+  };
+
   const renderJobs = () => {
     let jobsToShow: Job[] = [];
     let emptyMessage = '';
@@ -214,16 +239,25 @@ export default function JobsScreen() {
       
       {/* Header */}
       <View style={styles.header}>
+        {/* Back Button - Top Left */}
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={handleBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={20} color="#FFF" />
+        </TouchableOpacity>
+        
+        {/* Logo Container - Centered */}
         <View style={styles.logoContainer}>
           <View style={styles.logo}>
             <Text style={styles.logoText}>CSM</Text>
           </View>
           <Text style={styles.appName}>Client Services Management Software</Text>
         </View>
-        <View style={styles.headerBottom}>
-          <TouchableOpacity style={styles.backButton}>
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
+        
+        {/* Welcome Text - Top Right */}
+        <View style={styles.welcomeContainer}>
           <Text style={styles.welcomeText}>Welcome, {userData?.userName || 'User'}</Text>
         </View>
       </View>
@@ -231,16 +265,18 @@ export default function JobsScreen() {
       {/* Tabs */}
       <View style={styles.tabs}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'open' && styles.activeTab]}
+          style={[styles.tab, styles.tabWithBorder, activeTab === 'open' && styles.activeTab]}
           onPress={() => setActiveTab('open')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.tabText, activeTab === 'open' && styles.activeTabText]}>
             OPEN JOBS
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'in-progress' && styles.activeTab]}
+          style={[styles.tab, styles.tabWithBorder, activeTab === 'in-progress' && styles.activeTab]}
           onPress={() => setActiveTab('in-progress')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.tabText, activeTab === 'in-progress' && styles.activeTabText]}>
             JOBS IN-PROGRESS
@@ -249,6 +285,7 @@ export default function JobsScreen() {
         <TouchableOpacity
           style={[styles.tab, activeTab === 'completed' && styles.activeTab]}
           onPress={() => setActiveTab('completed')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.tabText, activeTab === 'completed' && styles.activeTabText]}>
             JOBS COMPLETED
@@ -272,12 +309,35 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#20B2AA', // Teal-green color matching images
     paddingTop: 50,
-    paddingBottom: 16,
+    paddingBottom: 20,
     paddingHorizontal: 16,
+    position: 'relative',
+    minHeight: 140,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+    } : {
+      elevation: 4,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+    }),
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 12,
+    marginTop: 8,
   },
   logo: {
     width: 60,
@@ -300,54 +360,48 @@ const styles = StyleSheet.create({
     color: '#FFF',
     textAlign: 'center',
   },
-  headerBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#000',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backButtonText: {
-    color: '#FFF',
-    fontSize: 20,
-    fontWeight: 'bold',
+  welcomeContainer: {
+    position: 'absolute',
+    top: 50,
+    right: 16,
+    zIndex: 10,
   },
   welcomeText: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#FFF',
     fontWeight: '600',
   },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: '#FFF',
+    backgroundColor: '#20B2AA', // Teal-green background matching images
+    borderTopWidth: 1,
+    borderTopColor: '#1A9A92',
   },
   tab: {
     flex: 1,
     paddingVertical: 16,
     alignItems: 'center',
-    backgroundColor: '#20B2AA', // Teal-green background matching images
-    marginHorizontal: 2,
-    borderRadius: 4,
+    backgroundColor: '#20B2AA',
+  },
+  tabWithBorder: {
+    borderRightWidth: 1,
+    borderRightColor: '#FFF',
   },
   activeTab: {
-    backgroundColor: '#20B2AA', // Teal-green color matching images
+    backgroundColor: '#20B2AA',
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#FFF', // White text on green background
+    textTransform: 'uppercase',
   },
   activeTabText: {
     color: '#FFF', // White text on green background
   },
   content: {
     flex: 1,
+    backgroundColor: '#FFF',
   },
   jobsList: {
     flex: 1,
@@ -366,7 +420,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
+    color: '#999',
     textAlign: 'center',
   },
 });
