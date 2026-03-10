@@ -24,6 +24,7 @@ export default function JobsScreen() {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ name: string; status: string } | null>(null);
 
   const openJobs = jobs.filter(job => job.status === 'open');
   const inProgressJobs = jobs.filter(job => job.status === 'in-progress');
@@ -119,6 +120,7 @@ export default function JobsScreen() {
       return;
     }
 
+    const displayName = job.FullName || job.name;
     setLoading(true);
 
     try {
@@ -139,6 +141,15 @@ export default function JobsScreen() {
       const result = await updateDriverEventStatus(updateRequest);
 
       if (result.success) {
+        // Show status banner
+        const statusText = action === 'CHECKEDIN' ? 'Service Started' : 
+                          action === 'CHECKEDOUT' ? 'Service Stopped' :
+                          action === 'NOSHOW' ? 'No Show' : 'Cancelled';
+        setStatusMessage({ name: displayName, status: statusText });
+        
+        // Hide banner after 3 seconds
+        setTimeout(() => setStatusMessage(null), 3000);
+        
         // Refresh driver events to get updated status
         await fetchDriverEvents(userData);
         
@@ -216,6 +227,14 @@ export default function JobsScreen() {
 
     return (
       <ScrollView style={styles.jobsList}>
+        {statusMessage && (
+          <View style={styles.statusBanner}>
+            <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+            <Text style={styles.statusBannerText}>
+              {statusMessage.name} - {statusMessage.status}
+            </Text>
+          </View>
+        )}
         {jobsToShow.map((job) => {
           const jobId = job.EventId?.toString() || job.webeventid?.toString() || job.requestId || '';
           return (
@@ -401,7 +420,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#FFF',
+    backgroundColor: '#F5F5F5',
   },
   jobsList: {
     flex: 1,
@@ -422,5 +441,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
     textAlign: 'center',
+  },
+  statusBanner: {
+    backgroundColor: '#4CAF50',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 8,
+  },
+  statusBannerText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });

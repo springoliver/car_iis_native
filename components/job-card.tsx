@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Platform, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
 export interface Job {
   webeventid?: number; // Primary ID from database (used in stored procedure)
@@ -67,7 +67,10 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
 
   return (
     <View style={styles.card}>
-      <Text style={styles.requestId}>#Request ID : {displayId}</Text>
+      {/* Request ID - Top Right */}
+      <View style={styles.requestIdContainer}>
+        <Text style={styles.requestId}>#Request ID : {displayId}</Text>
+      </View>
       
       {job.Event && (
         <View style={styles.details}>
@@ -77,33 +80,33 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
       )}
       
       <View style={styles.details}>
-        <Text style={styles.label}>Name:</Text>
+        <Text style={styles.label}>Name :</Text>
         <Text style={styles.value}>{displayName}</Text>
       </View>
 
       <View style={styles.details}>
-        <Text style={styles.label}>Location:</Text>
-        <Text style={styles.value}>{displayLocation}{displayCity} {displayPhone && `(${displayPhone})`}</Text>
+        <Text style={styles.label}>Location :</Text>
+        <Text style={styles.value}>{displayLocation}{displayCity} {displayPhone}</Text>
       </View>
 
       <View style={styles.details}>
-        <Text style={styles.label}>Date:</Text>
+        <Text style={styles.label}>Date :</Text>
         <Text style={styles.value}>{job.date}</Text>
       </View>
 
       <View style={styles.details}>
-        <Text style={styles.label}>Appointment Time:</Text>
+        <Text style={styles.label}>Appointment Time :</Text>
         <Text style={styles.value}>{job.appointmentTime}</Text>
       </View>
 
       <View style={styles.details}>
-        <Text style={styles.label}>Duration:</Text>
+        <Text style={styles.label}>Duration :</Text>
         <Text style={styles.value}>{job.duration}</Text>
       </View>
 
       {job.status && (
         <View style={styles.details}>
-          <Text style={styles.label}>Status:</Text>
+          <Text style={styles.label}>Status :</Text>
           <Text style={[styles.status, { color: getStatusColor() }]}>{getStatusText()}</Text>
         </View>
       )}
@@ -153,11 +156,23 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     marginHorizontal: 16,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+    } : {
+      elevation: 2,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+    }),
+  },
+  requestIdContainer: {
+    alignItems: 'flex-end',
+    marginBottom: 12,
   },
   requestId: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 12,
     color: '#333',
   },
   details: {
@@ -167,8 +182,8 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
-    width: 140,
+    color: '#333',
+    width: 160,
   },
   value: {
     fontSize: 16,
@@ -195,10 +210,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#20B2AA', // Teal-green color matching images
   },
   noShowButton: {
-    backgroundColor: '#FF9800',
+    backgroundColor: '#20B2AA', // Teal-green color matching screenshots
   },
   stopButton: {
-    backgroundColor: '#20B2AA', // Teal-green color matching images
+    backgroundColor: '#4CAF50', // Green color matching screenshots
   },
   cancelButton: {
     backgroundColor: '#F44336',
