@@ -225,12 +225,23 @@ export async function login(username: string, password: string): Promise<LoginRe
 
 /**
  * Get driver events for today
- * Endpoint: GET /business/getdriverevents?userName=...&userID=...&tennantId=...
+ * Endpoint: GET /business/getdriverevents?userName={userName}&userID={userID}&tennantId={tennantId}
  * Uses stored procedure: sp_getMobileData @userName,'SelectClientsONRoute'
  * 
- * @param userName - Username from login
- * @param userID - UserId (GUID) from login response
- * @param tennantId - TennantId from login response
+ * API Documentation:
+ * - Method: GET
+ * - Query Parameters:
+ *   - userName (string, required)
+ *   - userID (string, required) 
+ *   - tennantId (integer, required)
+ * - Response: GetDriverEventsResponse
+ *   - DriverEvents: Collection of DriverEvent
+ *   - OperationStatus: "SUCCESS" or "FAILURE"
+ * 
+ * @param userName - Username from login (string, required)
+ * @param userID - UserId (GUID string) from login response (required)
+ * @param tennantId - TennantId (integer) from login response (required)
+ * @returns Promise<DriverEvent[]> - Array of driver events
  */
 export async function getDriverEvents(
   userName: string,
@@ -238,33 +249,75 @@ export async function getDriverEvents(
   tennantId: number
 ): Promise<DriverEvent[]> {
   try {
-    console.log('🔵 Get driver events:', { userName, userID, tennantId });
+    // Validate required parameters
+    if (!userName || !userID || tennantId === undefined || tennantId === null) {
+      throw new Error('Missing required parameters: userName, userID, and tennantId are required');
+    }
+
+    console.log('🔵 Get driver events request:', { 
+      userName, 
+      userID, 
+      tennantId,
+      platform: Platform.OS,
+      apiUrl: API_BASE_URL 
+    });
     
+    // Build query parameters - matching API documentation exactly
     const params = new URLSearchParams({
-      userName: userName,
-      userID: userID,
+      userName: userName.toString(),
+      userID: userID.toString(),
       tennantId: tennantId.toString(),
     });
     
-    const response = await fetch(`${API_BASE_URL}/business/getdriverevents?${params.toString()}`, {
+    const url = `${API_BASE_URL}/business/getdriverevents?${params.toString()}`;
+    console.log('🔵 Get driver events URL:', url);
+    
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json, text/json',
       },
+    }).catch((fetchError) => {
+      // Handle network/CORS errors
+      if (Platform.OS === 'web') {
+        throw new Error('CORS_ERROR: Failed to fetch. Please test on mobile device/emulator (iOS/Android) instead of web browser.');
+      }
+      throw fetchError;
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Get driver events error:', response.status, errorText);
+      console.error('❌ Get driver events HTTP error:', response.status, errorText);
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 
     const data: GetDriverEventsResponse = await response.json();
-    console.log('✅ Get driver events response:', data);
+    console.log('✅ Get driver events response:', {
+      operationStatus: data.OperationStatus,
+      eventCount: data.DriverEvents?.length || 0,
+    });
     
+    // Check OperationStatus from API response
+    if (data.OperationStatus && data.OperationStatus !== 'SUCCESS') {
+      console.warn('⚠️ Get driver events returned non-SUCCESS status:', data.OperationStatus);
+    }
+    
+    // Return DriverEvents array (empty array if null/undefined)
     return data.DriverEvents || [];
   } catch (error) {
     console.error('❌ Get driver events error:', error);
+    
+    // Provide helpful error messages
+    let errorMessage = error instanceof Error ? error.message : 'Failed to get driver events';
+    
+    if (Platform.OS === 'web' && errorMessage.includes('CORS')) {
+      errorMessage = 'CORS_ERROR: Please test on mobile device/emulator (iOS/Android) instead of web browser.';
+    }
+    
+    // Return empty array on error (caller can check length)
+    // Alternatively, you could throw the error if you want callers to handle it
+    console.warn('⚠️ Returning empty array due to error. Caller should handle this case.');
     return [];
   }
 }
