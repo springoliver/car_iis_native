@@ -43,10 +43,13 @@ export default function LoginScreen() {
         });
         
         // Navigate to welcome screen with user data
+        // CRITICAL: Always use the original username entered by user (with tenant code)
+        // Backend returns UserName without tenant code (e.g., "Bjones")
+        // But we need full username (e.g., "BjonesXXX") to match database DriverUserName format
         router.replace({
           pathname: '/welcome',
           params: {
-            userName: result.UserName || username,
+            userName: username, // ALWAYS use original username with tenant code (e.g., "BjonesXXX")
             tennantId: result.TennantId?.toString() || '',
             userId: result.UserId || '',
             roleType: result.RoleType || '',

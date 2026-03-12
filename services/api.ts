@@ -171,10 +171,10 @@ export async function login(username: string, password: string): Promise<LoginRe
         UserId: data.UserId,
         RoleType: data.RoleType,
         LoginStatus: data.LoginStatus,
-        UserName: data.UserName,
+        UserName: username, // Use original username WITH tenant code (e.g., "JfishXXX", "AdminDMO")
         // Legacy fields for compatibility
         tennantid: data.TennantId,
-        userLogon: username, // Keep original username
+        userLogon: username, // Keep original username with tenant code
         role: data.RoleType === 'Driver' ? 'Driver' : 'User',
       };
     } else {
