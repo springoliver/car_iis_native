@@ -1,5 +1,5 @@
 import { Job, JobCard } from '@/components/job-card';
-import { driverEventToJob, getDriverEvents, updateDriverEventStatus, type UpdateDriverEventStatusRequest } from '@/services/api';
+import { appointmentEventToJob, driverEventToJob, getApplicationEvents, getDriverEvents, updateDriverEventStatus, type UpdateDriverEventStatusRequest } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -89,15 +89,35 @@ export default function JobsScreen() {
   const fetchDriverEvents = async (user: UserData) => {
     try {
       setLoading(true);
-      const driverEvents = await getDriverEvents(user.userName, user.userId, user.tennantId);
       
-      // Convert DriverEvent to Job format
-      const jobsList = driverEvents.map(driverEventToJob);
+      // Try getApplicationEvents first (has StartTime, EndTime, Duration, Time fields)
+      // If that fails or returns empty, fall back to getDriverEvents
+      let jobsList: Job[] = [];
+      
+      try {
+        const appointmentEvents = await getApplicationEvents(user.userName);
+        if (appointmentEvents && appointmentEvents.length > 0) {
+          // Convert AppointmentEvent to Job format
+          jobsList = appointmentEvents.map(appointmentEventToJob);
+          console.log('✅ Loaded', jobsList.length, 'appointment events');
+        } else {
+          // Fall back to driver events if appointment events are empty
+          console.log('⚠️ No appointment events, trying driver events...');
+          const driverEvents = await getDriverEvents(user.userName, user.userId, user.tennantId);
+          jobsList = driverEvents.map(driverEventToJob);
+          console.log('✅ Loaded', jobsList.length, 'driver events');
+        }
+      } catch (appointmentError) {
+        // If getApplicationEvents fails, try getDriverEvents
+        console.warn('⚠️ getApplicationEvents failed, trying getDriverEvents:', appointmentError);
+        const driverEvents = await getDriverEvents(user.userName, user.userId, user.tennantId);
+        jobsList = driverEvents.map(driverEventToJob);
+        console.log('✅ Loaded', jobsList.length, 'driver events');
+      }
+      
       setJobs(jobsList);
-      
-      console.log('✅ Loaded', jobsList.length, 'driver events');
     } catch (error) {
-      console.error('❌ Fetch driver events error:', error);
+      console.error('❌ Fetch events error:', error);
       Alert.alert('Error', 'Failed to load appointments. Please try again.');
     } finally {
       setLoading(false);

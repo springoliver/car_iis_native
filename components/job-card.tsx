@@ -72,13 +72,6 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
         <Text style={styles.requestId}>#Request ID : {displayId}</Text>
       </View>
       
-      {job.Event && (
-        <View style={styles.details}>
-          <Text style={styles.label}>Event:</Text>
-          <Text style={styles.value}>{job.Event.toUpperCase()}</Text>
-        </View>
-      )}
-      
       <View style={styles.details}>
         <Text style={styles.label}>Name :</Text>
         <Text style={styles.value}>{displayName}</Text>
@@ -96,20 +89,13 @@ export function JobCard({ job, onStart, onNoShow, onStop, onCancel, showActions 
 
       <View style={styles.details}>
         <Text style={styles.label}>Appointment Time :</Text>
-        <Text style={styles.value}>{job.appointmentTime}</Text>
+        <Text style={styles.value}>{job.appointmentTime || ''}</Text>
       </View>
 
       <View style={styles.details}>
         <Text style={styles.label}>Duration :</Text>
-        <Text style={styles.value}>{job.duration}</Text>
+        <Text style={styles.value}>{job.duration || ''}</Text>
       </View>
-
-      {job.status && (
-        <View style={styles.details}>
-          <Text style={styles.label}>Status :</Text>
-          <Text style={[styles.status, { color: getStatusColor() }]}>{getStatusText()}</Text>
-        </View>
-      )}
 
       {showActions && (
         <View style={styles.actions}>

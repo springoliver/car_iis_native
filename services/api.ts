@@ -73,10 +73,32 @@ export interface DriverEvent {
   EventStatus: string; // "CHECKEDIN", "CHECKEDOUT", "NOSHOW", "READY"
   Event: string; // "pickup", "drop off"
   Gender: number;
+  Pickup?: string; // starttime from stored procedure (e.g., "2026-03-16T08:00:00" or "08:00:00")
+  dropoff?: string; // endtime from stored procedure (e.g., "2026-03-16T09:15:00" or "09:15:00")
 }
 
 export interface GetDriverEventsResponse {
   DriverEvents: DriverEvent[];
+  OperationStatus: string;
+}
+
+export interface AppointmentEvent {
+  WebEventId: number;
+  EventStatus: string;
+  EmployeeId: number;
+  DueDate: string; // ISO datetime string
+  Address: string;
+  Duration: number; // Duration in minutes or similar unit
+  Time: string; // Time string (e.g., "08:00:00 AM")
+  FullName: string;
+  StartTime: string; // Start time string (e.g., "08:00:00 AM" or ISO datetime)
+  EndTime: string; // End time string (e.g., "09:15:00 AM" or ISO datetime)
+  TennantId: number;
+  HomePhone: string;
+}
+
+export interface GetApplicationEventsResponse {
+  AppointmentEvents: AppointmentEvent[];
   OperationStatus: string;
 }
 
@@ -220,6 +242,88 @@ export async function login(username: string, password: string): Promise<LoginRe
       message: errorMessage,
       LoginStatus: 'INVALID',
     };
+  }
+}
+
+/**
+ * Get application events (appointments) for today
+ * Endpoint: GET /business/getapplicationevents?userName={userName}
+ * Uses stored procedure: sp_getMobileData @userName,'SelectAppointmentsUser'
+ * 
+ * API Documentation:
+ * - Method: GET
+ * - Query Parameters:
+ *   - userName (string, required)
+ * - Response: GetApplicationEventsResponse
+ *   - AppointmentEvents: Collection of AppointmentEvent
+ *   - OperationStatus: "SUCCESS" or "FAILURE"
+ * 
+ * This API returns appointments with StartTime, EndTime, Duration, and Time fields.
+ * 
+ * @param userName - Username from login (string, required)
+ * @returns Promise<AppointmentEvent[]> - Array of appointment events
+ */
+export async function getApplicationEvents(
+  userName: string
+): Promise<AppointmentEvent[]> {
+  try {
+    if (!userName) {
+      throw new Error('Missing required parameter: userName is required');
+    }
+
+    console.log('🔵 Get application events request:', { 
+      userName,
+      platform: Platform.OS,
+      apiUrl: API_BASE_URL 
+    });
+    
+    const params = new URLSearchParams({
+      userName: userName.toString(),
+    });
+    
+    const url = `${API_BASE_URL}/business/getapplicationevents?${params.toString()}`;
+    console.log('🔵 Get application events URL:', url);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/json',
+      },
+    }).catch((fetchError) => {
+      if (Platform.OS === 'web') {
+        throw new Error('CORS_ERROR: Failed to fetch. Please test on mobile device/emulator (iOS/Android) instead of web browser.');
+      }
+      throw fetchError;
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Get application events HTTP error:', response.status, errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+
+    const data: GetApplicationEventsResponse = await response.json();
+    console.log('✅ Get application events response:', {
+      operationStatus: data.OperationStatus,
+      eventCount: data.AppointmentEvents?.length || 0,
+    });
+    
+    if (data.OperationStatus && data.OperationStatus !== 'SUCCESS') {
+      console.warn('⚠️ Get application events returned non-SUCCESS status:', data.OperationStatus);
+    }
+    
+    return data.AppointmentEvents || [];
+  } catch (error) {
+    console.error('❌ Get application events error:', error);
+    let errorMessage = error instanceof Error ? error.message : 'Failed to get application events';
+    
+    if (Platform.OS === 'web' && errorMessage.includes('CORS')) {
+      errorMessage = 'CORS_ERROR: Please test on mobile device/emulator (iOS/Android) instead of web browser.';
+    }
+    
+    console.warn('⚠️ Returning empty array due to error.');
+    return [];
   }
 }
 
@@ -421,9 +525,181 @@ export async function updateJobStatus(update: {
 }
 
 /**
+ * Format time string to display format
+ * Converts SQL Server time/datetime to readable format (e.g., "08:00:00" -> "08:00:00 AM")
+ */
+function formatTime(timeStr: string | undefined): string {
+  if (!timeStr) return '';
+  
+  try {
+    // Handle different time formats from SQL Server
+    // Could be: "08:00:00", "2026-03-16T08:00:00", "08:00:00.0000000", etc.
+    const date = new Date(timeStr);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      // If not a valid date, try to parse as time string directly
+      const timeMatch = timeStr.match(/(\d{1,2}):(\d{2}):(\d{2})/);
+      if (timeMatch) {
+        const hours = parseInt(timeMatch[1]);
+        const minutes = timeMatch[2];
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours % 12 || 12;
+        return `${displayHours.toString().padStart(2, '0')}:${minutes}:00 ${ampm}`;
+      }
+      return timeStr; // Return as-is if can't parse
+    }
+    
+    // Format as "HH:MM:SS AM/PM"
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const seconds = date.getSeconds();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    return `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')} ${ampm}`;
+  } catch (error) {
+    console.warn('⚠️ Error formatting time:', timeStr, error);
+    return timeStr; // Return original if formatting fails
+  }
+}
+
+/**
+ * Calculate duration between two times
+ * Returns formatted duration string (e.g., "01:15:00")
+ */
+function calculateDuration(startTime: string | undefined, endTime: string | undefined): string {
+  if (!startTime || !endTime) return '';
+  
+  try {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    
+    // Check if dates are valid
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      // Try parsing as time strings
+      const startMatch = startTime.match(/(\d{1,2}):(\d{2}):(\d{2})/);
+      const endMatch = endTime.match(/(\d{1,2}):(\d{2}):(\d{2})/);
+      
+      if (startMatch && endMatch) {
+        const startHours = parseInt(startMatch[1]);
+        const startMinutes = parseInt(startMatch[2]);
+        const endHours = parseInt(endMatch[1]);
+        const endMinutes = parseInt(endMatch[2]);
+        
+        let totalMinutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+        if (totalMinutes < 0) totalMinutes += 24 * 60; // Handle next day
+        
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+      }
+      return '';
+    }
+    
+    const diffMs = end.getTime() - start.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const diffSeconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+    
+    return `${diffHours.toString().padStart(2, '0')}:${diffMinutes.toString().padStart(2, '0')}:${diffSeconds.toString().padStart(2, '0')}`;
+  } catch (error) {
+    console.warn('⚠️ Error calculating duration:', error);
+    return '';
+  }
+}
+
+/**
+ * Convert AppointmentEvent to Job format for UI compatibility
+ * This API has StartTime, EndTime, Duration, and Time fields
+ */
+export function appointmentEventToJob(event: AppointmentEvent): Job {
+  // Use Time field if available, otherwise format StartTime
+  let appointmentTime = event.Time || '';
+  if (!appointmentTime && event.StartTime) {
+    appointmentTime = formatTime(event.StartTime);
+  }
+  
+  // Format duration from Duration field (number) or calculate from StartTime/EndTime
+  let duration = '';
+  if (event.Duration && event.Duration > 0) {
+    // Duration is in minutes, convert to HH:MM:SS format
+    const hours = Math.floor(event.Duration / 60);
+    const minutes = event.Duration % 60;
+    duration = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+  } else if (event.StartTime && event.EndTime) {
+    duration = calculateDuration(event.StartTime, event.EndTime);
+  }
+  
+  // Format date from DueDate if available, otherwise use today
+  let dateStr = new Date().toISOString().split('T')[0]; // Default to today
+  if (event.DueDate) {
+    try {
+      const date = new Date(event.DueDate);
+      if (!isNaN(date.getTime())) {
+        // Format as MM-DD-YYYY to match reference app
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        const year = date.getFullYear();
+        dateStr = `${month}-${day}-${year}`;
+      }
+    } catch (error) {
+      console.warn('⚠️ Error formatting date from DueDate:', error);
+    }
+  }
+  
+  // Map EventStatus to job status
+  const statusMap: Record<string, 'open' | 'in-progress' | 'completed' | 'no-show'> = {
+    'READY': 'open',
+    'CHECKEDIN': 'in-progress',
+    'CHECKEDOUT': 'completed',
+    'NOSHOW': 'no-show',
+  };
+  
+  return {
+    webeventid: event.WebEventId,
+    EventId: event.WebEventId, // Use WebEventId as EventId
+    requestId: event.WebEventId.toString(),
+    name: event.FullName,
+    FullName: event.FullName,
+    location: event.Address,
+    CustomerAddress: event.Address,
+    date: dateStr,
+    appointmentTime: appointmentTime,
+    duration: duration,
+    status: statusMap[event.EventStatus] || 'open',
+    phone: event.HomePhone,
+    HomePhone: event.HomePhone,
+    EventStatus: event.EventStatus,
+  };
+}
+
+/**
  * Convert DriverEvent to Job format for UI compatibility
  */
 export function driverEventToJob(event: DriverEvent): Job {
+  // Format appointment time from Pickup (starttime)
+  const appointmentTime = formatTime(event.Pickup);
+  
+  // Calculate duration from Pickup to dropoff
+  const duration = calculateDuration(event.Pickup, event.dropoff);
+  
+  // Format date from Pickup if available, otherwise use today
+  let dateStr = new Date().toISOString().split('T')[0]; // Default to today
+  if (event.Pickup) {
+    try {
+      const date = new Date(event.Pickup);
+      if (!isNaN(date.getTime())) {
+        // Format as MM-DD-YYYY to match reference app
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        const year = date.getFullYear();
+        dateStr = `${month}-${day}-${year}`;
+      }
+    } catch (error) {
+      console.warn('⚠️ Error formatting date from Pickup:', error);
+    }
+  }
+  
   return {
     EventId: event.EventId,
     webeventid: event.EventId, // For compatibility
@@ -433,9 +709,9 @@ export function driverEventToJob(event: DriverEvent): Job {
     location: event.CustomerAddress,
     CustomerAddress: event.CustomerAddress,
     City: event.City,
-    date: new Date().toISOString().split('T')[0], // Today's date
-    appointmentTime: '', // Not provided in driver events
-    duration: '',
+    date: dateStr,
+    appointmentTime: appointmentTime,
+    duration: duration,
     status: event.EventStatus === 'READY' ? 'open' :
             event.EventStatus === 'CHECKEDIN' ? 'in-progress' :
             event.EventStatus === 'CHECKEDOUT' ? 'completed' :
