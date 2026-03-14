@@ -111,6 +111,15 @@ export interface UpdateDriverEventStatusRequest {
   UserName: string;
 }
 
+export interface UpdateAppointmentStatusRequest {
+  WebEventId: number;
+  EventStatus: string; // "STARTED", "COMPLETED", "NOSHOW", "CANCELALL"
+  Latitude: string;
+  Longitude: string;
+  TenantId: number;
+  UserName: string;
+}
+
 export interface UpdateStatusResponse {
   OperationStatus: string; // "SUCCESS" or "FAILURE"
 }
@@ -423,6 +432,84 @@ export async function getDriverEvents(
     // Alternatively, you could throw the error if you want callers to handle it
     console.warn('⚠️ Returning empty array due to error. Caller should handle this case.');
     return [];
+  }
+}
+
+/**
+ * Update appointment status
+ * Endpoint: POST /business/updateappointmentstatus
+ * Updates ADV_Events table using WebEventId
+ * 
+ * EventStatus mapping:
+ * - "CHECKEDIN" -> "STARTED" (statusId: 19)
+ * - "CHECKEDOUT" -> "COMPLETED" (statusId: 30)
+ * - "NOSHOW" -> "NOSHOW" (statusId: 21)
+ * - "CANCELALL" -> "CANCELALL" (statusId: 1)
+ * 
+ * @param request - Update request with WebEventId, EventStatus, GPS coordinates, etc.
+ */
+export async function updateAppointmentStatus(
+  request: UpdateAppointmentStatusRequest
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    // Map frontend action names to backend EventStatus values
+    const statusMap: Record<string, string> = {
+      'CHECKEDIN': 'STARTED',
+      'CHECKEDOUT': 'COMPLETED',
+      'NOSHOW': 'NOSHOW',
+      'CANCELALL': 'CANCELALL',
+    };
+    
+    const backendStatus = statusMap[request.EventStatus] || request.EventStatus;
+    
+    console.log('🔵 Update appointment status:', { 
+      WebEventId: request.WebEventId, 
+      EventStatus: request.EventStatus,
+      BackendStatus: backendStatus,
+      Latitude: request.Latitude,
+      Longitude: request.Longitude,
+    });
+    
+    const response = await fetch(`${API_BASE_URL}/business/updateappointmentstatus`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        WebEventId: request.WebEventId,
+        EventStatus: backendStatus,
+        Latitude: request.Latitude,
+        Longitude: request.Longitude,
+        TenantId: request.TenantId,
+        UserName: request.UserName,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Update appointment status error:', response.status, errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+
+    const data: UpdateStatusResponse = await response.json();
+    console.log('✅ Update appointment status response:', data);
+    
+    if (data.OperationStatus === 'SUCCESS') {
+      return {
+        success: true,
+      };
+    } else {
+      return {
+        success: false,
+        message: 'Update failed',
+      };
+    }
+  } catch (error) {
+    console.error('❌ Update appointment status error:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update appointment status',
+    };
   }
 }
 

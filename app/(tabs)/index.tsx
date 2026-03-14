@@ -1,5 +1,5 @@
 import { Job, JobCard } from '@/components/job-card';
-import { appointmentEventToJob, driverEventToJob, getApplicationEvents, getDriverEvents, updateDriverEventStatus, type UpdateDriverEventStatusRequest } from '@/services/api';
+import { appointmentEventToJob, driverEventToJob, getApplicationEvents, getDriverEvents, updateAppointmentStatus, updateDriverEventStatus, type UpdateAppointmentStatusRequest, type UpdateDriverEventStatusRequest } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -148,17 +148,36 @@ export default function JobsScreen() {
       const latitude = location?.latitude?.toString() || '0';
       const longitude = location?.longitude?.toString() || '0';
 
-      // Build update request
-      const updateRequest: UpdateDriverEventStatusRequest = {
-        EventId: job.EventId || job.webeventid || parseInt(job.requestId || '0'),
-        EventStatus: action,
-        Latitude: latitude,
-        Longitude: longitude,
-        TenantId: userData.tennantId,
-        UserName: userData.userName,
-      };
-
-      const result = await updateDriverEventStatus(updateRequest);
+      // Determine which API to use based on job type
+      // If job has webeventid (from appointment events), use updateAppointmentStatus
+      // Otherwise, use updateDriverEventStatus (for driver events)
+      const isAppointmentEvent = job.webeventid !== undefined && job.webeventid !== null;
+      
+      let result: { success: boolean; message?: string };
+      
+      if (isAppointmentEvent) {
+        // Use appointment status update API (uses WebEventId)
+        const updateRequest: UpdateAppointmentStatusRequest = {
+          WebEventId: job.webeventid!,
+          EventStatus: action,
+          Latitude: latitude,
+          Longitude: longitude,
+          TenantId: userData.tennantId,
+          UserName: userData.userName,
+        };
+        result = await updateAppointmentStatus(updateRequest);
+      } else {
+        // Use driver event status update API (uses EventId)
+        const updateRequest: UpdateDriverEventStatusRequest = {
+          EventId: job.EventId || parseInt(job.requestId || '0'),
+          EventStatus: action,
+          Latitude: latitude,
+          Longitude: longitude,
+          TenantId: userData.tennantId,
+          UserName: userData.userName,
+        };
+        result = await updateDriverEventStatus(updateRequest);
+      }
 
       if (result.success) {
         // Show status banner
@@ -170,7 +189,7 @@ export default function JobsScreen() {
         // Hide banner after 3 seconds
         setTimeout(() => setStatusMessage(null), 3000);
         
-        // Refresh driver events to get updated status
+        // Refresh events to get updated status
         await fetchDriverEvents(userData);
         
         // Switch to appropriate tab
