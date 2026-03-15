@@ -120,6 +120,13 @@ export interface UpdateAppointmentStatusRequest {
   UserName: string;
 }
 
+export interface UpdateDriverCallRequest {
+  EventId: number;
+  IsCall: boolean;
+  TennantId: number; // Note: API uses "TennantId" (with double 'n')
+  UserName: string;
+}
+
 export interface UpdateStatusResponse {
   OperationStatus: string; // "SUCCESS" or "FAILURE"
 }
@@ -509,6 +516,65 @@ export async function updateAppointmentStatus(
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Failed to update appointment status',
+    };
+  }
+}
+
+/**
+ * Update driver call status
+ * Endpoint: POST /business/updatedrivercallstatus
+ * Updates adv_driver_events table setting IsCall=1
+ * 
+ * @param request - Update request with EventId, IsCall flag, TenantId, and UserName
+ */
+export async function updateDriverCallStatus(
+  request: UpdateDriverCallRequest
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    console.log('🔵 Update driver call status:', { 
+      EventId: request.EventId, 
+      IsCall: request.IsCall,
+      TennantId: request.TennantId,
+      UserName: request.UserName,
+    });
+    
+    const response = await fetch(`${API_BASE_URL}/business/updatedrivercallstatus`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        EventId: request.EventId,
+        IsCall: request.IsCall,
+        TennantId: request.TennantId, // Note: API uses "TennantId" (double 'n')
+        UserName: request.UserName,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Update driver call status error:', response.status, errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+
+    const data: UpdateStatusResponse = await response.json();
+    console.log('✅ Update driver call status response:', data);
+    
+    if (data.OperationStatus === 'SUCCESS') {
+      return {
+        success: true,
+      };
+    } else {
+      return {
+        success: false,
+        message: 'Update failed',
+      };
+    }
+  } catch (error) {
+    console.error('❌ Update driver call status error:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update call status',
     };
   }
 }
