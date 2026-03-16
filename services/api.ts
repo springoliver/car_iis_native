@@ -127,6 +127,15 @@ export interface UpdateDriverCallRequest {
   UserName: string;
 }
 
+export interface StartTripRequest {
+  TenantId: number;
+  LogDate: string; // ISO datetime string (e.g., "2026-03-16T02:50:32.1543017-05:00")
+  Longitude: string;
+  Latitude: string;
+  UserName: string;
+  RouteNo: string;
+}
+
 export interface UpdateStatusResponse {
   OperationStatus: string; // "SUCCESS" or "FAILURE"
 }
@@ -636,6 +645,68 @@ export async function updateDriverEventStatus(
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Failed to update event status',
+    };
+  }
+}
+
+/**
+ * Start trip
+ * Endpoint: POST /business/starttrip
+ * Logs trip start coordinates with action "TRIPSTARTED_" + RouteNo
+ * 
+ * @param request - Start trip request with TenantId, RouteNo, GPS coordinates, etc.
+ */
+export async function startTrip(
+  request: StartTripRequest
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    console.log('🔵 Start trip:', { 
+      TenantId: request.TenantId,
+      RouteNo: request.RouteNo,
+      Latitude: request.Latitude,
+      Longitude: request.Longitude,
+      UserName: request.UserName,
+    });
+    
+    const response = await fetch(`${API_BASE_URL}/business/starttrip`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        TenantId: request.TenantId,
+        LogDate: request.LogDate || new Date().toISOString(), // Use provided date or current date
+        Longitude: request.Longitude,
+        Latitude: request.Latitude,
+        UserName: request.UserName,
+        RouteNo: request.RouteNo,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Start trip error:', response.status, errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+
+    const data: UpdateStatusResponse = await response.json();
+    console.log('✅ Start trip response:', data);
+    
+    if (data.OperationStatus === 'SUCCESS') {
+      return {
+        success: true,
+      };
+    } else {
+      return {
+        success: false,
+        message: 'Start trip failed',
+      };
+    }
+  } catch (error) {
+    console.error('❌ Start trip error:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to start trip',
     };
   }
 }
